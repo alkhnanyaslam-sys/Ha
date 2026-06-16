@@ -8,7 +8,7 @@ const bot      = new Telegraf(process.env.BOT_TOKEN)
 const ADMIN_ID = Number(process.env.ADMIN_ID)
 
 const SOURCES = {
-  mecca:  { name: '🕋 الحرم المكي',                    url: 'http://stream.radiojar.com/0tpy1h0kxtzuv', img: 'mecca.png'  },
+  mecca:  { name: '🕋 الحرم المكي',                    url: 'http://n07.radiojar.com/0tpy1h0kxtzuv', img: 'mecca.png'  },
   madina: { name: '🕌 الحرم المدني',                   url: 'http://stream.radiojar.com/8s5u5tpdtwzuv', img: 'madina.png' },
   cairo:  { name: '📻 إذاعة القرآن الكريم من القاهرة', url: 'https://stream.radiojar.com/8s5u5tpdtwzuv', img: 'cairo.png'  }
 }
