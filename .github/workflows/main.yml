@@ -7,7 +7,7 @@ on:
 
 jobs:
   stream:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     timeout-minutes: 360
 
     steps:
@@ -16,8 +16,8 @@ jobs:
 
       - name: Install FFmpeg
         run: |
-          sudo apt-get update --fix-missing -y
-          sudo apt-get install -y --fix-missing ffmpeg || sudo snap install ffmpeg
+          sudo apt-get update -y
+          sudo apt-get install -y ffmpeg
 
       - name: Setup Node.js
         uses: actions/setup-node@v3
