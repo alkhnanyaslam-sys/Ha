@@ -29,7 +29,7 @@ jobs:
 
       - name: Install dependencies
         run: npm install
-
+# updated
       - name: 🕋 Start Quran Stream
         env:
           BOT_TOKEN:        ${{ secrets.BOT_TOKEN }}
