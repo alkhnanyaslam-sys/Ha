@@ -28,11 +28,11 @@ const lastRestart = {}
 const MAX_RETRY   = 5
 
 function buildFFmpegCmd(src, img, dest) {
-  const audioFlags = [
+  const audioInput = [
     `-reconnect 1`,
     `-reconnect_streamed 1`,
-    `-reconnect_delay_max 10`,
-    `-timeout 15000000`,
+    `-reconnect_delay_max 5`,
+    `-timeout 10000000`,
     `-i "${src.url}"`,
   ].join(' ')
 
@@ -41,7 +41,7 @@ function buildFFmpegCmd(src, img, dest) {
     return [
       'ffmpeg -y',
       `-f lavfi -i color=black:s=1280x720:r=25`,
-      audioFlags,
+      audioInput,
       `-map 0:v -map 1:a`,
       `-c:v libx264 -preset ultrafast -b:v 500k`,
       `-c:a aac -b:a 128k -ar 44100`,
@@ -52,13 +52,24 @@ function buildFFmpegCmd(src, img, dest) {
   return [
     'ffmpeg -y',
     `-loop 1 -i "${img}"`,
-    audioFlags,
-    `-map 0:v:0 -map 1:a:0`,
-    `-c:v libx264 -preset ultrafast -tune stillimage`,
-    `-vf scale=1280:720,fps=25`,
-    `-b:v 500k -maxrate 600k -bufsize 1200k`,
-    `-c:a aac -b:a 128k -ar 44100`,
-    `-shortest`,
+    audioInput,
+    `-map 0:v:0`,
+    `-map 1:a:0`,
+    `-c:v libx264`,
+    `-preset ultrafast`,
+    `-tune stillimage`,
+    `-vf scale=1280:720`,
+    `-r 25`,
+    `-g 50`,
+    `-b:v 500k`,
+    `-maxrate 500k`,
+    `-bufsize 2000k`,
+    `-c:a aac`,
+    `-b:a 128k`,
+    `-ar 44100`,
+    `-ac 2`,
+    `-af aresample=async=1`,
+    `-fflags +genpts`,
     `-f flv "${dest}"`
   ].join(' ')
 }
@@ -67,7 +78,12 @@ function startStream(ch, sourceKey) {
   const key  = sourceKey || ch.source || 'mecca'
   const src  = SOURCES[key] || SOURCES.mecca
   const dest = `${ch.rtmp}/${ch.key}`
-  const img  = path.join(__dirname, src.img)
+
+  // استخدام process.cwd() بدل __dirname
+  const img = path.join(process.cwd(), src.img)
+
+  console.log(`🖼️ [${ch.id}] img path: ${img}`)
+  console.log(`✅ [${ch.id}] exists: ${fs.existsSync(img)}`)
 
   const now = Date.now()
   if (lastRestart[ch.id] && now - lastRestart[ch.id] < 3000) {
@@ -76,8 +92,6 @@ function startStream(ch, sourceKey) {
     return
   }
   lastRestart[ch.id] = now
-
-  console.log(`📁 ${ch.id} image: ${img} → exists: ${fs.existsSync(img)}`)
 
   if (procs[ch.id]) {
     try { procs[ch.id].kill('SIGKILL') } catch(e) {}
@@ -91,7 +105,6 @@ function startStream(ch, sourceKey) {
   const proc = exec(cmd, { shell: '/bin/bash' })
   procs[ch.id] = proc
 
-  // ── مؤقت: اطبع كل الـ stderr لتشخيص المشكلة ──
   proc.stderr?.on('data', d => {
     const msg = d.toString().trim()
     console.log(`[${ch.id}] ${msg}`)
