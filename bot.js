@@ -28,8 +28,7 @@ const lastRestart = {}
 const MAX_RETRY   = 5
 
 function buildFFmpegCmd(src, dest) {
-  // الصورة تتغير تلقائياً مع كل source
-  const img = path.join(process.cwd(), src.img)
+  const img      = path.join(process.cwd(), src.img)
   const imgExists = fs.existsSync(img)
 
   console.log(`🖼️ img: ${img} → exists: ${imgExists}`)
@@ -39,11 +38,14 @@ function buildFFmpegCmd(src, dest) {
     return [
       'ffmpeg -y',
       `-f lavfi -i color=black:s=1280x720:r=25`,
-      `-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5`,
+      `-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5 -re`,
       `-i "${src.url}"`,
       `-map 0:v -map 1:a`,
-      `-c:v libx264 -preset ultrafast -b:v 500k`,
-      `-c:a aac -b:a 128k -ar 44100`,
+      `-c:v libx264 -preset ultrafast`,
+      `-vf format=yuv420p,scale=1280:720`,
+      `-r 25 -g 50`,
+      `-b:v 500k -maxrate 500k -bufsize 1000k`,
+      `-c:a aac -b:a 128k -ar 44100 -ac 2`,
       `-f flv "${dest}"`
     ].join(' ')
   }
@@ -51,16 +53,14 @@ function buildFFmpegCmd(src, dest) {
   return [
     'ffmpeg -y',
     `-loop 1 -i "${img}"`,
-    `-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5`,
+    `-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5 -re`,
     `-i "${src.url}"`,
     `-map 0:v:0 -map 1:a:0`,
     `-c:v libx264 -preset ultrafast -tune stillimage`,
-    `-vf scale=1280:720`,
-    `-r 25`,
-    `-g 50`,
+    `-vf format=yuv420p,scale=1280:720`,
+    `-r 25 -g 50`,
     `-b:v 500k -maxrate 500k -bufsize 1000k`,
     `-c:a aac -b:a 128k -ar 44100 -ac 2`,
-    `-use_wallclock_as_timestamps 1`,
     `-fflags +genpts+discardcorrupt`,
     `-f flv "${dest}"`
   ].join(' ')
@@ -84,7 +84,6 @@ function startStream(ch, sourceKey) {
     delete procs[ch.id]
   }
 
-  // تحديث الـ source → الصورة تتغير تلقائياً
   ch.source = key
   if (retries[ch.id] === undefined) retries[ch.id] = 0
 
@@ -96,7 +95,6 @@ function startStream(ch, sourceKey) {
 
   proc.stderr?.on('data', d => {
     const msg = d.toString().trim()
-    // فلتر — اطبع الأخطاء فقط
     if (/error|fail|invalid|refused/i.test(msg)) {
       console.log(`⚠️ [${ch.id}] ${msg.substring(0, 150)}`)
     }
@@ -181,7 +179,6 @@ bot.command('set', async ctx => {
   await ctx.reply(`✅ ${chId} → ${SOURCES[src].name}\n🖼️ الصورة: ${SOURCES[src].img}`)
 })
 
-// تغيير كل القنوات مع الصورة تلقائياً
 bot.command('mecca', async ctx => {
   if (ctx.from.id !== ADMIN_ID) return
   CHANNELS.forEach(ch => startStream(ch, 'mecca'))
@@ -232,7 +229,7 @@ setTimeout(() => {
     const src = SOURCES[ch.source]
     msg += `📡 ${ch.id}: ${src?.name || '—'} | 🖼️ ${src?.img || '—'}\n`
   })
-  msg += `\n*/status* — الحالة\n*/set ch1 cairo* — تغيير مصدر قناة\n*/mecca* — كل القنوات للمكة`
+  msg += `\n*/status* — الحالة\n*/set ch1 cairo* — تغيير مصدر\n*/mecca* — كل القنوات للمكة`
   notifyAdmin(msg)
 }, 10000)
 
