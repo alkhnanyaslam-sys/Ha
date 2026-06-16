@@ -15,7 +15,10 @@ jobs:
         uses: actions/checkout@v3
 
       - name: Install FFmpeg
-        uses: FedericoCarboni/setup-ffmpeg@v3
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y ffmpeg
+          ffmpeg -version | head -1
 
       - name: Setup Node.js
         uses: actions/setup-node@v3
@@ -27,20 +30,10 @@ jobs:
 
       - name: 🔍 Test Radio URLs
         run: |
-          echo "=== FFmpeg version ==="
-          ffmpeg -version | head -1
-
-          echo ""
           echo "=== Test Mecca URL ==="
           timeout 15 ffmpeg -reconnect 1 -reconnect_streamed 1 \
             -i "http://n07.radiojar.com/0tpy1h0kxtzuv" \
-            -t 5 -f null - 2>&1 | grep -E "Audio|Error|error|fail|refused|200|302" || echo "FAILED"
-
-          echo ""
-          echo "=== Test Madina URL ==="
-          timeout 15 ffmpeg -reconnect 1 -reconnect_streamed 1 \
-            -i "http://stream.radiojar.com/8s5u5tpdtwzuv" \
-            -t 5 -f null - 2>&1 | grep -E "Audio|Error|error|fail|refused|200|302" || echo "FAILED"
+            -t 5 -f null - 2>&1 | grep -E "Audio|Error|error|fail|refused" || echo "FAILED"
 
           echo ""
           echo "=== RTMP Info ==="
