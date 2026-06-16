@@ -17,7 +17,11 @@ jobs:
       - name: Install FFmpeg
         run: |
           sudo apt-get update -y
-          sudo apt-get install -y ffmpeg
+          sudo apt-get install -y ffmpeg --no-install-recommends || \
+          wget https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-amd64-static.tar.xz && \
+          tar xf ffmpeg-release-amd64-static.tar.xz && \
+          sudo mv ffmpeg-*-amd64-static/ffmpeg /usr/local/bin/ && \
+          sudo mv ffmpeg-*-amd64-static/ffprobe /usr/local/bin/
 
       - name: Setup Node.js
         uses: actions/setup-node@v3
