@@ -8,9 +8,9 @@ const bot      = new Telegraf(process.env.BOT_TOKEN)
 const ADMIN_ID = Number(process.env.ADMIN_ID)
 
 const SOURCES = {
-  mecca:  { name: '🕋 الحرم المكي',                    url: 'http://n07.radiojar.com/0tpy1h0kxtzuv',      img: 'mecca.png'  },
-  madina: { name: '🕌 الحرم المدني',                   url: 'http://stream.radiojar.com/8s5u5tpdtwzuv',   img: 'madina.png' },
-  cairo:  { name: '📻 إذاعة القرآن الكريم من القاهرة', url: 'https://stream.radiojar.com/8s5u5tpdtwzuv',  img: 'cairo.png'  }
+  mecca:  { name: '🕋 الحرم المكي',                    url: 'http://n07.radiojar.com/0tpy1h0kxtzuv',     img: 'mecca.png'  },
+  madina: { name: '🕌 الحرم المدني',                   url: 'http://stream.radiojar.com/8s5u5tpdtwzuv',  img: 'madina.png' },
+  cairo:  { name: '📻 إذاعة القرآن الكريم من القاهرة', url: 'https://stream.radiojar.com/8s5u5tpdtwzuv', img: 'cairo.png'  }
 }
 
 const CHANNELS = [
@@ -27,21 +27,20 @@ const retries     = {}
 const lastRestart = {}
 const MAX_RETRY   = 5
 
-function buildFFmpegCmd(src, img, dest) {
-  const audioInput = [
-    `-reconnect 1`,
-    `-reconnect_streamed 1`,
-    `-reconnect_delay_max 5`,
-    `-timeout 10000000`,
-    `-i "${src.url}"`,
-  ].join(' ')
+function buildFFmpegCmd(src, dest) {
+  // الصورة تتغير تلقائياً مع كل source
+  const img = path.join(process.cwd(), src.img)
+  const imgExists = fs.existsSync(img)
 
-  if (!fs.existsSync(img)) {
-    console.log(`⚠️ Image not found, using black background: ${img}`)
+  console.log(`🖼️ img: ${img} → exists: ${imgExists}`)
+
+  if (!imgExists) {
+    console.log(`⚠️ Image not found, using black background`)
     return [
       'ffmpeg -y',
       `-f lavfi -i color=black:s=1280x720:r=25`,
-      audioInput,
+      `-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5`,
+      `-i "${src.url}"`,
       `-map 0:v -map 1:a`,
       `-c:v libx264 -preset ultrafast -b:v 500k`,
       `-c:a aac -b:a 128k -ar 44100`,
@@ -52,38 +51,25 @@ function buildFFmpegCmd(src, img, dest) {
   return [
     'ffmpeg -y',
     `-loop 1 -i "${img}"`,
-    audioInput,
-    `-map 0:v:0`,
-    `-map 1:a:0`,
-    `-c:v libx264`,
-    `-preset ultrafast`,
-    `-tune stillimage`,
+    `-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5`,
+    `-i "${src.url}"`,
+    `-map 0:v:0 -map 1:a:0`,
+    `-c:v libx264 -preset ultrafast -tune stillimage`,
     `-vf scale=1280:720`,
     `-r 25`,
     `-g 50`,
-    `-b:v 500k`,
-    `-maxrate 500k`,
-    `-bufsize 2000k`,
-    `-c:a aac`,
-    `-b:a 128k`,
-    `-ar 44100`,
-    `-ac 2`,
-    `-af aresample=async=1`,
-    `-fflags +genpts`,
+    `-b:v 500k -maxrate 500k -bufsize 1000k`,
+    `-c:a aac -b:a 128k -ar 44100 -ac 2`,
+    `-use_wallclock_as_timestamps 1`,
+    `-fflags +genpts+discardcorrupt`,
     `-f flv "${dest}"`
   ].join(' ')
 }
 
 function startStream(ch, sourceKey) {
-  const key  = sourceKey || ch.source || 'mecca'
-  const src  = SOURCES[key] || SOURCES.mecca
+  const key = sourceKey || ch.source || 'mecca'
+  const src = SOURCES[key] || SOURCES.mecca
   const dest = `${ch.rtmp}/${ch.key}`
-
-  // استخدام process.cwd() بدل __dirname
-  const img = path.join(process.cwd(), src.img)
-
-  console.log(`🖼️ [${ch.id}] img path: ${img}`)
-  console.log(`✅ [${ch.id}] exists: ${fs.existsSync(img)}`)
 
   const now = Date.now()
   if (lastRestart[ch.id] && now - lastRestart[ch.id] < 3000) {
@@ -98,16 +84,22 @@ function startStream(ch, sourceKey) {
     delete procs[ch.id]
   }
 
+  // تحديث الـ source → الصورة تتغير تلقائياً
   ch.source = key
   if (retries[ch.id] === undefined) retries[ch.id] = 0
 
-  const cmd  = buildFFmpegCmd(src, img, dest)
+  console.log(`🟢 [${ch.id}] → ${src.name} | img: ${src.img}`)
+
+  const cmd  = buildFFmpegCmd(src, dest)
   const proc = exec(cmd, { shell: '/bin/bash' })
   procs[ch.id] = proc
 
   proc.stderr?.on('data', d => {
     const msg = d.toString().trim()
-    console.log(`[${ch.id}] ${msg}`)
+    // فلتر — اطبع الأخطاء فقط
+    if (/error|fail|invalid|refused/i.test(msg)) {
+      console.log(`⚠️ [${ch.id}] ${msg.substring(0, 150)}`)
+    }
   })
 
   proc.on('exit', (code, signal) => {
@@ -121,7 +113,7 @@ function startStream(ch, sourceKey) {
     if (code !== 0) {
       retries[ch.id]++
       const delay = Math.min(retries[ch.id] * 5000, 30000)
-      console.log(`🔄 ${ch.id} retry ${retries[ch.id]}/${MAX_RETRY} in ${delay / 1000}s`)
+      console.log(`🔄 [${ch.id}] retry ${retries[ch.id]}/${MAX_RETRY} in ${delay / 1000}s`)
 
       if (retries[ch.id] <= MAX_RETRY) {
         setTimeout(() => startStream(ch, ch.source), delay)
@@ -140,8 +132,6 @@ function startStream(ch, sourceKey) {
   proc.on('error', err => {
     console.log(`❌ [${ch.id}] exec error: ${err.message}`)
   })
-
-  console.log(`🟢 ${ch.id} → ${src.name}`)
 }
 
 function startAll() {
@@ -168,15 +158,66 @@ function getStatus() {
   const upMin = Math.floor(process.uptime() / 60)
   let txt = `📊 *الحالة:*\n\n`
   CHANNELS.forEach(ch => {
-    const src = SOURCES[ch.source]?.name || '—'
+    const src = SOURCES[ch.source]
     const ret = retries[ch.id] ? ` (retry: ${retries[ch.id]})` : ''
     txt += procs[ch.id]
-      ? `🟢 ${ch.id} — ${src}${ret}\n`
+      ? `🟢 ${ch.id} — ${src?.name || '—'} | 🖼️ ${src?.img || '—'}${ret}\n`
       : `🔴 ${ch.id} — متوقفة${ret}\n`
   })
   txt += `\n⏰ وقت التشغيل: ${upMin} دقيقة`
   return txt
 }
+
+// ── Bot Commands ──────────────────────────────────────────────────────────────
+
+bot.command('set', async ctx => {
+  if (ctx.from.id !== ADMIN_ID) return
+  const [, chId, src] = ctx.message.text.split(' ')
+  if (!chId || !src || !SOURCES[src])
+    return ctx.reply('الاستخدام: /set ch1 mecca\nالمصادر: mecca | madina | cairo')
+  const ch = CHANNELS.find(c => c.id === chId)
+  if (!ch) return ctx.reply(`❌ القناة ${chId} غير موجودة`)
+  startStream(ch, src)
+  await ctx.reply(`✅ ${chId} → ${SOURCES[src].name}\n🖼️ الصورة: ${SOURCES[src].img}`)
+})
+
+// تغيير كل القنوات مع الصورة تلقائياً
+bot.command('mecca', async ctx => {
+  if (ctx.from.id !== ADMIN_ID) return
+  CHANNELS.forEach(ch => startStream(ch, 'mecca'))
+  await ctx.reply(`🕋 كل القنوات → ${SOURCES.mecca.name}\n🖼️ الصورة: ${SOURCES.mecca.img}`)
+})
+
+bot.command('madina', async ctx => {
+  if (ctx.from.id !== ADMIN_ID) return
+  CHANNELS.forEach(ch => startStream(ch, 'madina'))
+  await ctx.reply(`🕌 كل القنوات → ${SOURCES.madina.name}\n🖼️ الصورة: ${SOURCES.madina.img}`)
+})
+
+bot.command('cairo', async ctx => {
+  if (ctx.from.id !== ADMIN_ID) return
+  CHANNELS.forEach(ch => startStream(ch, 'cairo'))
+  await ctx.reply(`📻 كل القنوات → ${SOURCES.cairo.name}\n🖼️ الصورة: ${SOURCES.cairo.img}`)
+})
+
+bot.command('stop', async ctx => {
+  if (ctx.from.id !== ADMIN_ID) return
+  stopAll()
+  await ctx.reply('⏹ تم الإيقاف')
+})
+
+bot.command('restart', async ctx => {
+  if (ctx.from.id !== ADMIN_ID) return
+  startAll()
+  await ctx.reply('🔄 جاري إعادة التشغيل...')
+})
+
+bot.command('status', async ctx => {
+  if (ctx.from.id !== ADMIN_ID) return
+  await ctx.replyWithMarkdown(getStatus())
+})
+
+// ── Start ─────────────────────────────────────────────────────────────────────
 
 startAll()
 
@@ -187,32 +228,13 @@ setInterval(() => {
 
 setTimeout(() => {
   let msg = `✅ *بدأ البث*\n\n`
-  CHANNELS.forEach(ch => { msg += `📡 ${ch.id}: ${SOURCES[ch.source]?.name || '—'}\n` })
-  msg += `\n*/status* — الحالة\n*/set ch1 cairo* — تغيير مصدر`
+  CHANNELS.forEach(ch => {
+    const src = SOURCES[ch.source]
+    msg += `📡 ${ch.id}: ${src?.name || '—'} | 🖼️ ${src?.img || '—'}\n`
+  })
+  msg += `\n*/status* — الحالة\n*/set ch1 cairo* — تغيير مصدر قناة\n*/mecca* — كل القنوات للمكة`
   notifyAdmin(msg)
 }, 10000)
-
-bot.command('set', async ctx => {
-  if (ctx.from.id !== ADMIN_ID) return
-  const [, chId, src] = ctx.message.text.split(' ')
-  if (!chId || !src || !SOURCES[src])
-    return ctx.reply('الاستخدام: /set ch1 mecca\nالمصادر: mecca | madina | cairo')
-  const ch = CHANNELS.find(c => c.id === chId)
-  if (!ch) return ctx.reply(`❌ القناة ${chId} غير موجودة`)
-  startStream(ch, src)
-  await ctx.reply(`✅ ${chId} → ${SOURCES[src].name}`)
-})
-
-bot.command('mecca',   async ctx => { if (ctx.from.id !== ADMIN_ID) return; CHANNELS.forEach(ch => startStream(ch, 'mecca'));  await ctx.reply(`🕋 كل القنوات → ${SOURCES.mecca.name}`)  })
-bot.command('madina',  async ctx => { if (ctx.from.id !== ADMIN_ID) return; CHANNELS.forEach(ch => startStream(ch, 'madina')); await ctx.reply(`🕌 كل القنوات → ${SOURCES.madina.name}`) })
-bot.command('cairo',   async ctx => { if (ctx.from.id !== ADMIN_ID) return; CHANNELS.forEach(ch => startStream(ch, 'cairo'));  await ctx.reply(`📻 كل القنوات → ${SOURCES.cairo.name}`)  })
-bot.command('stop',    async ctx => { if (ctx.from.id !== ADMIN_ID) return; stopAll();  await ctx.reply('⏹ تم الإيقاف') })
-bot.command('restart', async ctx => { if (ctx.from.id !== ADMIN_ID) return; startAll(); await ctx.reply('🔄 جاري إعادة التشغيل...') })
-
-bot.command('status', async ctx => {
-  if (ctx.from.id !== ADMIN_ID) return
-  await ctx.replyWithMarkdown(getStatus())
-})
 
 bot.launch({ dropPendingUpdates: true })
   .catch(err => console.log('⚠️ Bot launch error:', err.message))
