@@ -1,0 +1,50 @@
+name: 🕋 Quran Stream
+
+on:
+  schedule:
+    - cron: '0 */6 * * *'
+  workflow_dispatch:
+
+jobs:
+  stream:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Install FFmpeg
+        run: sudo apt-get install -y ffmpeg
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: 🕋 Start Quran Stream
+        env:
+          BOT_TOKEN:        ${{ secrets.BOT_TOKEN }}
+          ADMIN_ID:         ${{ secrets.ADMIN_ID }}
+          CHANNEL_1_RTMP:   ${{ secrets.CHANNEL_1_RTMP }}
+          CHANNEL_1_KEY:    ${{ secrets.CHANNEL_1_KEY }}
+          CHANNEL_1_SOURCE: ${{ secrets.CHANNEL_1_SOURCE }}
+          CHANNEL_2_RTMP:   ${{ secrets.CHANNEL_2_RTMP }}
+          CHANNEL_2_KEY:    ${{ secrets.CHANNEL_2_KEY }}
+          CHANNEL_2_SOURCE: ${{ secrets.CHANNEL_2_SOURCE }}
+          CHANNEL_3_RTMP:   ${{ secrets.CHANNEL_3_RTMP }}
+          CHANNEL_3_KEY:    ${{ secrets.CHANNEL_3_KEY }}
+          CHANNEL_3_SOURCE: ${{ secrets.CHANNEL_3_SOURCE }}
+          CHANNEL_4_RTMP:   ${{ secrets.CHANNEL_4_RTMP }}
+          CHANNEL_4_KEY:    ${{ secrets.CHANNEL_4_KEY }}
+          CHANNEL_4_SOURCE: ${{ secrets.CHANNEL_4_SOURCE }}
+          CHANNEL_5_RTMP:   ${{ secrets.CHANNEL_5_RTMP }}
+          CHANNEL_5_KEY:    ${{ secrets.CHANNEL_5_KEY }}
+          CHANNEL_5_SOURCE: ${{ secrets.CHANNEL_5_SOURCE }}
+          CHANNEL_6_RTMP:   ${{ secrets.CHANNEL_6_RTMP }}
+          CHANNEL_6_KEY:    ${{ secrets.CHANNEL_6_KEY }}
+          CHANNEL_6_SOURCE: ${{ secrets.CHANNEL_6_SOURCE }}
+        run: node bot.js
