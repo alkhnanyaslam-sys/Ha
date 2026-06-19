@@ -8,9 +8,9 @@ const bot      = new Telegraf(process.env.BOT_TOKEN)
 const ADMIN_ID = Number(process.env.ADMIN_ID)
 
 const SOURCES = {
-  mecca:  { name: '🕋 الحرم المكي',                    url: 'http://n07.radiojar.com/0tpy1h0kxtzuv', img: 'mecca.png'  },
-  madina: { name: '🕌 الحرم المدني',                   url: 'http://n07.radiojar.com/8s5u5tpdtwzuv', img: 'madina.png' },
-  cairo:  { name: '📻 إذاعة القرآن الكريم من القاهرة', url: 'https://stream.radiojar.com/8s5u5tpdtwzuv', img: 'cairo.png' }
+  mecca:  { name: '🕋 الحرم المكي',                    url: 'http://n07.radiojar.com/0tpy1h0kxtzuv', img: 'mecca.mp4'  },
+  madina: { name: '🕌 الحرم المدني',                   url: 'http://n07.radiojar.com/8s5u5tpdtwzuv', img: 'madina.mp4' },
+  cairo:  { name: '📻 إذاعة القرآن الكريم من القاهرة', url: 'https://stream.radiojar.com/8s5u5tpdtwzuv', img: 'cairo.mp4' }
 }
 
 const CHANNELS = [
@@ -28,28 +28,33 @@ const MAX_RETRY = 5
 
 function buildFFmpegCmd(src, img, dest) {
   if (!fs.existsSync(img)) {
-    console.log(`❌ Image not found: ${img}`)
+    console.log(`❌ Video not found: ${img}`)
     return [
       'ffmpeg -y',
       '-f lavfi -i color=black:s=1280x720:r=25',
-      `-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5 -i "${src.url}"`,
+      '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5',
+      `-i "${src.url}"`,
       '-map 0:v -map 1:a',
       '-c:v libx264 -preset ultrafast',
-      '-b:v 500k -c:a aac -b:a 128k -ar 44100',
+      '-b:v 800k',
+      '-c:a aac -b:a 128k -ar 44100 -ac 2',
+      '-bufsize 2000k -maxrate 1000k',
       `-f flv "${dest}"`
     ].join(' ')
   }
 
   return [
     'ffmpeg -y',
-    `-loop 1 -re -i "${img}"`,
-    '-thread_queue_size 512',
-    `-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5 -i "${src.url}"`,
+    `-stream_loop -1 -re -i "${img}"`,
+    '-thread_queue_size 1024',
+    '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5',
+    `-i "${src.url}"`,
     '-map 0:v:0 -map 1:a:0',
     '-c:v libx264 -preset ultrafast',
-    `-vf "scale=1280:720,fps=25,drawtext=fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf:fontsize=30:fontcolor=white:x=10:y=10:text='%{localtime\\:%H\\:%M\\:%S}'"`,
-    '-b:v 500k',
-    '-c:a aac -b:a 128k -ar 44100',
+    '-vf scale=1280:720,fps=25',
+    '-b:v 800k -minrate 800k -maxrate 800k -bufsize 1600k',
+    '-c:a aac -b:a 128k -ar 44100 -ac 2',
+    '-async 1 -vsync 1',
     `-f flv "${dest}"`
   ].join(' ')
 }
@@ -60,7 +65,7 @@ function startStream(ch, sourceKey) {
   const dest = `${ch.rtmp}/${ch.key}`
   const img  = path.join(__dirname, src.img)
 
-  console.log(`📁 ${ch.id} image: ${img} → exists: ${fs.existsSync(img)}`)
+  console.log(`📁 ${ch.id} video: ${img} → exists: ${fs.existsSync(img)}`)
 
   if (procs[ch.id]) {
     try { procs[ch.id].kill('SIGKILL') } catch(e) {}
@@ -76,7 +81,7 @@ function startStream(ch, sourceKey) {
   proc.stderr?.on('data', d => {
     const msg = d.toString().trim()
     if (msg.includes('Error') || msg.includes('error')) {
-      console.log(`⚠️ ${ch.id}: ${msg.substring(0, 100)}`)
+      console.log(`⚠️ ${ch.id}: ${msg.substring(0, 150)}`)
     }
   })
 
@@ -144,7 +149,7 @@ setTimeout(() => {
   CHANNELS.forEach(ch => {
     msg += `📡 ${ch.id}: ${SOURCES[ch.source]?.name || '—'}\n`
   })
-  msg += `\n*/status* — الحالة\n*/set ch1 cairo* — تغيير مصدر قناة`
+  msg += `\n*/status* — الحالة\n*/set ch1 cairo* — تغيير مصدر`
   notifyAdmin(msg)
 }, 10000)
 
