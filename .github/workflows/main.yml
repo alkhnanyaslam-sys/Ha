@@ -15,10 +15,7 @@ jobs:
         uses: actions/checkout@v3
 
       - name: Install FFmpeg
-        run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y ffmpeg
-          ffmpeg -version | head -1
+        uses: FedericoCarboni/setup-ffmpeg@v3
 
       - name: Setup Node.js
         uses: actions/setup-node@v3
@@ -28,17 +25,11 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      - name: 🔍 Test Radio URLs
+      - name: 🖼 Convert Images to Video
         run: |
-          echo "=== Test Mecca URL ==="
-          timeout 15 ffmpeg -reconnect 1 -reconnect_streamed 1 \
-            -i "http://n07.radiojar.com/0tpy1h0kxtzuv" \
-            -t 5 -f null - 2>&1 | grep -E "Audio|Error|error|fail|refused" || echo "FAILED"
-
-          echo ""
-          echo "=== RTMP Info ==="
-          echo "CH1 RTMP set: ${{ secrets.CHANNEL_1_RTMP != '' }}"
-          echo "CH1 KEY set:  ${{ secrets.CHANNEL_1_KEY != '' }}"
+          ffmpeg -loop 1 -i mecca.png  -t 10 -c:v libx264 -preset ultrafast -vf "scale=1280:720,fps=25" -an mecca.mp4
+          ffmpeg -loop 1 -i madina.png -t 10 -c:v libx264 -preset ultrafast -vf "scale=1280:720,fps=25" -an madina.mp4
+          ffmpeg -loop 1 -i cairo.png  -t 10 -c:v libx264 -preset ultrafast -vf "scale=1280:720,fps=25" -an cairo.mp4
 
       - name: 🕋 Start Quran Stream
         env:
