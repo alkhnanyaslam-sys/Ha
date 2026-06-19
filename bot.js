@@ -10,6 +10,8 @@ const ADMIN_ID = Number(process.env.ADMIN_ID)
 const SOURCES = {
   mecca:  { name: '🕋 الحرم المكي',                    url: 'http://n07.radiojar.com/0tpy1h0kxtzuv', img: 'mecca.mp4'  },
   madina: { name: '🕌 الحرم المدني',                   url: 'http://n07.radiojar.com/8s5u5tpdtwzuv', img: 'madina.mp4' },
+  // تنبيه: cairo حالياً بنفس آيدي الستريم بتاع madina (8s5u5tpdtwzuv)
+  // لازم تتأكد من الرابط الصحيح لإذاعة القرآن من القاهرة وتحطه هنا
   cairo:  { name: '📻 إذاعة القرآن الكريم من القاهرة', url: 'https://stream.radiojar.com/8s5u5tpdtwzuv', img: 'cairo.mp4' }
 }
 
@@ -27,34 +29,52 @@ const retries = {}
 const MAX_RETRY = 5
 
 function buildFFmpegCmd(src, img, dest) {
+  // خيارات ثابتة لمدخل الصوت (الراديو اللايف):
+  // - reconnect: يصمد لو الاتصال انقطع لحظياً
+  // - rw_timeout / probesize / analyzeduration: يمنع تعليق ffmpeg أو فشله
+  //   في التعرف على الصوت من أول مرة
+  // - thread_queue_size: يمنع كراش بسبب بطء الشبكة
+  const audioInputOpts = [
+    '-thread_queue_size 4096',
+    '-reconnect 1',
+    '-reconnect_streamed 1',
+    '-reconnect_at_eof 1',
+    '-reconnect_delay_max 5',
+    '-rw_timeout 15000000',
+    '-probesize 5M',
+    '-analyzeduration 5M'
+  ].join(' ')
+
   if (!fs.existsSync(img)) {
     console.log(`❌ Video not found: ${img}`)
     return [
-      'ffmpeg -y',
+      'ffmpeg -y -hide_banner -loglevel warning',
       '-f lavfi -i color=black:s=1280x720:r=25',
-      '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5',
+      audioInputOpts,
       `-i "${src.url}"`,
-      '-map 0:v -map 1:a',
-      '-c:v libx264 -preset ultrafast',
-      '-b:v 800k',
+      '-map 0:v:0 -map 1:a:0',
+      '-c:v libx264 -preset ultrafast -tune stillimage -pix_fmt yuv420p',
+      '-b:v 800k -maxrate 1000k -bufsize 2000k -g 50',
       '-c:a aac -b:a 128k -ar 44100 -ac 2',
-      '-bufsize 2000k -maxrate 1000k',
+      '-max_muxing_queue_size 1024',
+      '-shortest',
       `-f flv "${dest}"`
     ].join(' ')
   }
 
   return [
-    'ffmpeg -y',
-    `-stream_loop -1 -re -i "${img}"`,
+    'ffmpeg -y -hide_banner -loglevel warning',
     '-thread_queue_size 1024',
-    '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5',
+    `-stream_loop -1 -re -i "${img}"`,
+    audioInputOpts,
     `-i "${src.url}"`,
     '-map 0:v:0 -map 1:a:0',
-    '-c:v libx264 -preset ultrafast',
+    '-c:v libx264 -preset ultrafast -tune stillimage -pix_fmt yuv420p',
     '-vf scale=1280:720,fps=25',
-    '-b:v 800k -minrate 800k -maxrate 800k -bufsize 1600k',
+    '-b:v 800k -minrate 800k -maxrate 800k -bufsize 1600k -g 50',
     '-c:a aac -b:a 128k -ar 44100 -ac 2',
     '-async 1 -vsync 1',
+    '-max_muxing_queue_size 1024',
     `-f flv "${dest}"`
   ].join(' ')
 }
@@ -76,21 +96,21 @@ function startStream(ch, sourceKey) {
   if (!retries[ch.id]) retries[ch.id] = 0
 
   const cmd  = buildFFmpegCmd(src, img, dest)
-  const proc = exec(cmd, { shell: '/bin/bash' })
+  console.log(`▶️ ${ch.id} cmd: ${cmd}`)
+  const proc = exec(cmd, { shell: '/bin/bash', maxBuffer: 1024 * 1024 * 10 })
 
+  // نطبع كل رسائل stderr (مش بس اللي فيها كلمة error) عشان نشوف السبب الحقيقي للفشل
   proc.stderr?.on('data', d => {
     const msg = d.toString().trim()
-    if (msg.includes('Error') || msg.includes('error')) {
-      console.log(`⚠️ ${ch.id}: ${msg.substring(0, 150)}`)
-    }
+    if (msg) console.log(`⚠️ ${ch.id}: ${msg.substring(0, 300)}`)
   })
 
-  proc.on('exit', (code) => {
+  proc.on('exit', (code, signal) => {
     delete procs[ch.id]
     if (code !== 0) {
       retries[ch.id]++
       const delay = Math.min(retries[ch.id] * 5000, 30000)
-      console.log(`🔄 ${ch.id} retry ${retries[ch.id]}/${MAX_RETRY} in ${delay/1000}s`)
+      console.log(`🔄 ${ch.id} خرج بكود ${code} (إشارة ${signal}) — محاولة ${retries[ch.id]}/${MAX_RETRY} بعد ${delay/1000} ثانية`)
       if (retries[ch.id] <= MAX_RETRY) {
         setTimeout(() => startStream(ch, ch.source), delay)
       } else {
