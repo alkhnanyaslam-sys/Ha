@@ -43,11 +43,11 @@ function buildFFmpegCmd(src, img, dest) {
   return [
     'ffmpeg -y',
     `-loop 1 -re -i "${img}"`,
-    `-thread_queue_size 512`,
+    '-thread_queue_size 512',
     `-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5 -i "${src.url}"`,
     '-map 0:v:0 -map 1:a:0',
-    '-c:v libx264 -preset ultrafast -tune stillimage',
-    '-vf scale=1280:720,fps=25',
+    '-c:v libx264 -preset ultrafast',
+    `-vf "scale=1280:720,fps=25,drawtext=fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf:fontsize=30:fontcolor=white:x=10:y=10:text='%{localtime\\:%H\\:%M\\:%S}'"`,
     '-b:v 500k',
     '-c:a aac -b:a 128k -ar 44100',
     `-f flv "${dest}"`
