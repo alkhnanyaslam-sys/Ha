@@ -101,3 +101,4 @@ with open(sys.argv[1],'rb') as f:
           CHANNEL_6_KEY:    ${{ secrets.CHANNEL_6_KEY }}
           CHANNEL_6_SOURCE: ${{ secrets.CHANNEL_6_SOURCE }}
         run: node bot.js
+
