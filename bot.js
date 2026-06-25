@@ -81,10 +81,7 @@ const MAX_RETRY    = 5
 // ─── ملفات محلية ────────────────────────────────────────────────────────────
 function getAudioFiles(dir) {
   const fullDir = path.join(__dirname, dir)
-  if (!fs.existsSync(fullDir)) {
-    console.log(`❌ مجلد الصوت غير موجود: ${fullDir}`)
-    return []
-  }
+  if (!fs.existsSync(fullDir)) return []
   return fs.readdirSync(fullDir)
     .filter(f => /\.(mp3|aac|m4a|opus|flac|wav)$/i.test(f))
     .sort()
@@ -94,88 +91,74 @@ function getAudioFiles(dir) {
 function buildConcatList(files, chId) {
   const listPath = path.join('/tmp', `concat_${chId}.txt`)
   const repeated = Array(999).fill(files).flat()
-  const content  = repeated.map(f => `file '${f}'`).join('\n')
-  fs.writeFileSync(listPath, content, 'utf8')
+  fs.writeFileSync(listPath, repeated.map(f => `file '${f}'`).join('\n'), 'utf8')
   return listPath
 }
 
-// ─── بناء videoInput للصور ──────────────────────────────────────────────────
+// ─── بناء videoInput ─────────────────────────────────────────────────────────
 function buildVideoInput(imgFile) {
   const img     = path.join(__dirname, imgFile)
   const isVideo = /\.(mp4|mkv|avi)$/i.test(imgFile)
-  if (!fs.existsSync(img)) {
-    return '-f lavfi -i color=black:s=1280x720:r=25'
-  }
-  if (isVideo) {
-    return `-thread_queue_size 1024 -stream_loop -1 -re -i "${img}"`
-  }
-  // صورة ثابتة — بدون -re لتجنب الشاشة السوداء
-  return `-thread_queue_size 1024 -loop 1 -i "${img}"`
+  if (!fs.existsSync(img)) return '-f lavfi -i color=black:s=1280x720:r=25'
+  if (isVideo)              return `-thread_queue_size 1024 -stream_loop -1 -re -i "${img}"`
+  return                           `-thread_queue_size 1024 -loop 1 -i "${img}"`
 }
 
 // ─── بناء أمر ffmpeg ─────────────────────────────────────────────────────────
 function buildFFmpegCmd(src, dest, chId) {
 
-  // بث مباشر
+  // ════════════════════════════════════════════════════
+  // بث مباشر (راديو) — mecca / cairo
+  // ════════════════════════════════════════════════════
   if (src.type === 'stream') {
-    const img = path.join(__dirname, src.img)
-    const audioInputOpts = [
+    const img        = path.join(__dirname, src.img)
+    const imgExists  = fs.existsSync(img)
+    const isVideo    = /\.(mp4|mkv|avi)$/i.test(src.img)
+
+    // فيديو الخلفية
+    const videoInput = !imgExists
+      ? '-f lavfi -i color=black:s=1280x720:r=25'
+      : isVideo
+        ? `-thread_queue_size 1024 -stream_loop -1 -re -i "${img}"`
+        : `-thread_queue_size 1024 -loop 1 -i "${img}"`
+
+    // خيارات الصوت المباشر — reconnect ضروري جداً
+    const audioOpts = [
       '-thread_queue_size 4096',
       '-reconnect 1',
       '-reconnect_streamed 1',
       '-reconnect_at_eof 1',
-      '-reconnect_delay_max 5',
-      '-rw_timeout 15000000',
-      '-probesize 5M',
-      '-analyzeduration 5M'
+      '-reconnect_delay_max 10',
+      '-rw_timeout 20000000',
+      '-probesize 10M',
+      '-analyzeduration 10M'
     ].join(' ')
 
-    if (!fs.existsSync(img)) {
-      return [
-        'ffmpeg -y -hide_banner -loglevel warning',
-        '-f lavfi -i color=black:s=1280x720:r=25',
-        audioInputOpts,
-        `-i "${src.url}"`,
-        '-map 0:v:0 -map 1:a:0',
-        '-c:v libx264 -preset ultrafast -tune stillimage -pix_fmt yuv420p',
-        '-b:v 800k -maxrate 1000k -bufsize 2000k -g 50',
-        '-c:a aac -b:a 128k -ar 44100 -ac 2',
-        '-max_muxing_queue_size 1024',
-        '-shortest',
-        `-f flv "${dest}"`
-      ].join(' ')
-    }
-
-    const isVideo    = /\.(mp4|mkv|avi)$/i.test(src.img)
-    const videoInput = isVideo
-      ? `-thread_queue_size 1024 -stream_loop -1 -re -i "${img}"`
-      : `-thread_queue_size 1024 -loop 1 -i "${img}"`
-
     return [
-      'ffmpeg -y -hide_banner -loglevel warning',
+      'ffmpeg -y -hide_banner -loglevel error',
       videoInput,
-      audioInputOpts,
+      audioOpts,
       `-i "${src.url}"`,
       '-map 0:v:0 -map 1:a:0',
       '-c:v libx264 -preset ultrafast -tune stillimage -pix_fmt yuv420p',
       '-vf scale=1280:720,fps=25',
-      '-b:v 800k -minrate 800k -maxrate 800k -bufsize 1600k -g 50',
+      '-b:v 500k -maxrate 500k -bufsize 1000k -g 50',
       '-c:a aac -b:a 128k -ar 44100 -ac 2',
-      '-async 1 -vsync 1',
-      '-max_muxing_queue_size 1024',
+      '-max_muxing_queue_size 2048',
       `-f flv "${dest}"`
     ].join(' ')
   }
 
+  // ════════════════════════════════════════════════════
   // ملفات محلية
+  // ════════════════════════════════════════════════════
   if (src.type === 'files') {
     const files      = getAudioFiles(src.dir)
     const videoInput = buildVideoInput(src.img)
 
     if (files.length === 0) {
-      console.log(`⚠️ ${chId}: مفيش ملفات صوت في ${src.dir} — بث صامت`)
       return [
-        'ffmpeg -y -hide_banner -loglevel warning',
+        'ffmpeg -y -hide_banner -loglevel error',
         videoInput,
         '-f lavfi -i anullsrc=r=44100:cl=stereo',
         '-map 0:v -map 1:a',
@@ -189,16 +172,15 @@ function buildFFmpegCmd(src, dest, chId) {
     }
 
     const listPath = buildConcatList(files, chId)
-
     return [
-      'ffmpeg -y -hide_banner -loglevel warning',
+      'ffmpeg -y -hide_banner -loglevel error',
       videoInput,
       '-thread_queue_size 4096',
       `-f concat -safe 0 -i "${listPath}"`,
       '-map 0:v:0 -map 1:a:0',
       '-c:v libx264 -preset ultrafast -tune stillimage -pix_fmt yuv420p',
       '-vf scale=1280:720,fps=25',
-      '-b:v 800k -minrate 800k -maxrate 800k -bufsize 1600k -g 50',
+      '-b:v 500k -maxrate 500k -bufsize 1000k -g 50',
       '-c:a aac -b:a 128k -ar 44100 -ac 2',
       '-async 1 -vsync 1',
       '-max_muxing_queue_size 1024',
@@ -206,7 +188,9 @@ function buildFFmpegCmd(src, dest, chId) {
     ].join(' ')
   }
 
-  // سور أونلاين من mp3quran.net — سورة واحدة في كل مرة
+  // ════════════════════════════════════════════════════
+  // سور أونلاين — سورة واحدة في كل مرة
+  // ════════════════════════════════════════════════════
   if (src.type === 'online') {
     if (!currentSurah[chId]) currentSurah[chId] = 1
     const num        = String(currentSurah[chId]).padStart(3, '0')
@@ -214,15 +198,15 @@ function buildFFmpegCmd(src, dest, chId) {
     const videoInput = buildVideoInput(src.img)
 
     return [
-      'ffmpeg -y -hide_banner -loglevel warning',
+      'ffmpeg -y -hide_banner -loglevel error',
       videoInput,
       '-thread_queue_size 4096',
       '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5',
-      `-i "${url}"`,
+      `-re -i "${url}"`,
       '-map 0:v:0 -map 1:a:0',
       '-c:v libx264 -preset ultrafast -tune stillimage -pix_fmt yuv420p',
       '-vf scale=1280:720,fps=25',
-      '-b:v 800k -minrate 800k -maxrate 800k -bufsize 1600k -g 50',
+      '-b:v 500k -maxrate 500k -bufsize 1000k -g 50',
       '-c:a aac -b:a 128k -ar 44100 -ac 2',
       '-async 1 -vsync 1',
       '-max_muxing_queue_size 1024',
@@ -245,25 +229,19 @@ function startStream(ch, sourceKey) {
   }
 
   ch.source = key
-  if (!retries[ch.id]) retries[ch.id] = 0
-
-  // إعادة ضبط السورة لو تغير المصدر
+  if (!retries[ch.id])      retries[ch.id]      = 0
   if (!currentSurah[ch.id]) currentSurah[ch.id] = 1
 
   let cmd
-  try {
-    cmd = buildFFmpegCmd(src, dest, ch.id)
-  } catch(err) {
-    console.log(`❌ ${ch.id} خطأ في بناء الأمر: ${err.message}`)
-    return
-  }
+  try   { cmd = buildFFmpegCmd(src, dest, ch.id) }
+  catch (err) { console.log(`❌ ${ch.id} خطأ: ${err.message}`); return }
 
-  console.log(`▶️ ${ch.id} [${src.name}] سورة ${currentSurah[ch.id] || '-'}`)
+  console.log(`▶️  ${ch.id} [${src.name}]${src.type === 'online' ? ` سورة ${currentSurah[ch.id]}` : ''}`)
   const proc = exec(cmd, { shell: '/bin/bash', maxBuffer: 1024 * 1024 * 10 })
 
   proc.stderr?.on('data', d => {
     const msg = d.toString().trim()
-    if (msg) console.log(`⚠️ ${ch.id}: ${msg.substring(0, 300)}`)
+    if (msg) console.log(`⚠️  ${ch.id}: ${msg.substring(0, 300)}`)
   })
 
   proc.on('exit', (code, signal) => {
@@ -272,24 +250,25 @@ function startStream(ch, sourceKey) {
     if (code !== 0 && signal !== 'SIGKILL') {
       retries[ch.id]++
       const delay = Math.min(retries[ch.id] * 5000, 30000)
-      console.log(`🔄 ${ch.id} خرج بكود ${code} — محاولة ${retries[ch.id]}/${MAX_RETRY} بعد ${delay/1000}ث`)
+      console.log(`🔄 ${ch.id} كود ${code} — محاولة ${retries[ch.id]}/${MAX_RETRY} بعد ${delay/1000}ث`)
       if (retries[ch.id] <= MAX_RETRY) {
         setTimeout(() => startStream(ch, ch.source), delay)
       } else {
         retries[ch.id] = 0
+        notifyAdmin(`❌ قناة ${ch.id} فشلت ${MAX_RETRY} مرات — إعادة بعد 5 دقائق`)
         setTimeout(() => startStream(ch, ch.source), 5 * 60 * 1000)
-        notifyAdmin(`❌ قناة ${ch.id} فشلت ${MAX_RETRY} مرات\nجاري إعادة المحاولة بعد 5 دقائق`)
       }
     } else {
       retries[ch.id] = 0
       if (src.type === 'online') {
-        // روتيت للسورة الجاية
         currentSurah[ch.id] = (currentSurah[ch.id] % 114) + 1
-        console.log(`🔁 ${ch.id} → السورة ${currentSurah[ch.id]}`)
+        console.log(`🔁 ${ch.id} → سورة ${currentSurah[ch.id]}`)
         setTimeout(() => startStream(ch, ch.source), 1000)
       } else if (src.type === 'files') {
-        console.log(`🔁 ${ch.id} خلصت الملفات، بيعيد من الأول...`)
         setTimeout(() => startStream(ch, ch.source), 2000)
+      } else {
+        // stream — إعادة تلقائية
+        setTimeout(() => startStream(ch, ch.source), 3000)
       }
     }
   })
@@ -299,9 +278,7 @@ function startStream(ch, sourceKey) {
 }
 
 function startAll() {
-  CHANNELS.forEach((ch, i) => {
-    setTimeout(() => startStream(ch, ch.source), i * 3000)
-  })
+  CHANNELS.forEach((ch, i) => setTimeout(() => startStream(ch, ch.source), i * 3000))
 }
 
 function stopAll() {
@@ -315,25 +292,25 @@ function stopAll() {
 
 function notifyAdmin(msg) {
   bot.telegram.sendMessage(ADMIN_ID, msg, { parse_mode: 'Markdown' })
-    .catch(err => console.log('⚠️ Notify error:', err.message))
+    .catch(e => console.log('⚠️  Notify error:', e.message))
 }
 
 function getStatus() {
   let txt = `📊 *الحالة:*\n\n`
   CHANNELS.forEach(ch => {
-    const src    = SOURCES[ch.source]?.name || '—'
-    const surah  = SOURCES[ch.source]?.type === 'online' ? ` (سورة ${currentSurah[ch.id] || 1})` : ''
-    txt += procs[ch.id] ? `🟢 ${ch.id} — ${src}${surah}\n` : `🔴 ${ch.id} — متوقفة\n`
+    const src   = SOURCES[ch.source]?.name || '—'
+    const extra = SOURCES[ch.source]?.type === 'online' ? ` (سورة ${currentSurah[ch.id] || 1})` : ''
+    txt += procs[ch.id] ? `🟢 ${ch.id} — ${src}${extra}\n` : `🔴 ${ch.id} — متوقفة\n`
   })
-  txt += `\n⏰ وقت التشغيل: ${Math.floor(process.uptime() / 60)} دقيقة`
+  txt += `\n⏰ ${Math.floor(process.uptime() / 60)} دقيقة`
   return txt
 }
 
 // ─── تشغيل ───────────────────────────────────────────────────────────────────
 startAll()
 
+// إعادة تشغيل البث المباشر كل ساعتين
 setInterval(() => {
-  console.log('🔄 Auto-refresh للقنوات المباشرة...')
   CHANNELS.forEach((ch, i) => {
     if (SOURCES[ch.source]?.type === 'stream') {
       setTimeout(() => startStream(ch, ch.source), i * 3000)
@@ -343,43 +320,36 @@ setInterval(() => {
 
 setTimeout(() => {
   let msg = `✅ *بدأ البث*\n\n`
-  CHANNELS.forEach(ch => {
-    msg += `📡 ${ch.id}: ${SOURCES[ch.source]?.name || '—'}\n`
-  })
-  msg += `\n*/status* — الحالة`
-  msg += `\n*/set ch1 qatami* — تغيير مصدر`
-  msg += `\n*/list* — قائمة المصادر`
+  CHANNELS.forEach(ch => { msg += `📡 ${ch.id}: ${SOURCES[ch.source]?.name || '—'}\n` })
+  msg += `\n*/status* /list /restart /stop`
   notifyAdmin(msg)
 }, 10000)
 
-// ─── أوامر البوت ──────────────────────────────────────────────────────────────
+// ─── أوامر البوت ─────────────────────────────────────────────────────────────
 bot.command('set', async ctx => {
   if (ctx.from.id !== ADMIN_ID) return
-  const parts = ctx.message.text.split(' ')
-  const chId  = parts[1]
-  const src   = parts[2]
-  if (!chId || !src || !SOURCES[src]) {
-    const srcList = Object.keys(SOURCES).join(' | ')
-    return ctx.reply(`الاستخدام: /set ch1 mecca\nالمصادر: ${srcList}`)
+  const [, chId, srcKey] = ctx.message.text.split(' ')
+  if (!chId || !srcKey || !SOURCES[srcKey]) {
+    return ctx.reply(`الاستخدام: /set ch1 mecca\nالمصادر: ${Object.keys(SOURCES).join(' | ')}`)
   }
   const ch = CHANNELS.find(c => c.id === chId)
   if (!ch) return ctx.reply(`❌ القناة ${chId} غير موجودة`)
   currentSurah[chId] = 1
-  startStream(ch, src)
-  await ctx.reply(`✅ ${chId} → ${SOURCES[src].name}`)
+  startStream(ch, srcKey)
+  await ctx.reply(`✅ ${chId} → ${SOURCES[srcKey].name}`)
 })
 
-bot.command('mecca',      async ctx => { if (ctx.from.id !== ADMIN_ID) return; CHANNELS.forEach(ch => startStream(ch, 'mecca'));      await ctx.reply(`🕋 كل القنوات → ${SOURCES.mecca.name}`)      })
-bot.command('cairo',      async ctx => { if (ctx.from.id !== ADMIN_ID) return; CHANNELS.forEach(ch => startStream(ch, 'cairo'));      await ctx.reply(`📻 كل القنوات → ${SOURCES.cairo.name}`)      })
-bot.command('dosari',     async ctx => { if (ctx.from.id !== ADMIN_ID) return; CHANNELS.forEach(ch => startStream(ch, 'dosari'));     await ctx.reply(`🎙️ كل القنوات → ${SOURCES.dosari.name}`)     })
-bot.command('abdulbasit', async ctx => { if (ctx.from.id !== ADMIN_ID) return; CHANNELS.forEach(ch => startStream(ch, 'abdulbasit')); await ctx.reply(`🎙️ كل القنوات → ${SOURCES.abdulbasit.name}`) })
-bot.command('minshawi',   async ctx => { if (ctx.from.id !== ADMIN_ID) return; CHANNELS.forEach(ch => startStream(ch, 'minshawi'));   await ctx.reply(`🎙️ كل القنوات → ${SOURCES.minshawi.name}`)   })
-bot.command('qatami',     async ctx => { if (ctx.from.id !== ADMIN_ID) return; CHANNELS.forEach(ch => startStream(ch, 'qatami'));     await ctx.reply(`🎙️ كل القنوات → ${SOURCES.qatami.name}`)     })
-bot.command('hussary',    async ctx => { if (ctx.from.id !== ADMIN_ID) return; CHANNELS.forEach(ch => startStream(ch, 'hussary'));    await ctx.reply(`🎙️ كل القنوات → ${SOURCES.hussary.name}`)    })
-bot.command('muaiqly',    async ctx => { if (ctx.from.id !== ADMIN_ID) return; CHANNELS.forEach(ch => startStream(ch, 'muaiqly'));    await ctx.reply(`🎙️ كل القنوات → ${SOURCES.muaiqly.name}`)    })
-bot.command('alafasy',    async ctx => { if (ctx.from.id !== ADMIN_ID) return; CHANNELS.forEach(ch => startStream(ch, 'alafasy'));    await ctx.reply(`🎙️ كل القنوات → ${SOURCES.alafasy.name}`)    })
-bot.command('restart',    async ctx => { if (ctx.from.id !== ADMIN_ID) return; startAll(); await ctx.reply('🔄 جاري إعادة التشغيل...') })
-bot.command('stop',       async ctx => { if (ctx.from.id !== ADMIN_ID) return; stopAll();  await ctx.reply('⏹ تم الإيقاف') })
+bot.command('mecca',      async ctx => { if (ctx.from.id !== ADMIN_ID) return; CHANNELS.forEach(ch => startStream(ch, 'mecca'));      await ctx.reply(`🕋 ${SOURCES.mecca.name}`)      })
+bot.command('cairo',      async ctx => { if (ctx.from.id !== ADMIN_ID) return; CHANNELS.forEach(ch => startStream(ch, 'cairo'));      await ctx.reply(`📻 ${SOURCES.cairo.name}`)      })
+bot.command('dosari',     async ctx => { if (ctx.from.id !== ADMIN_ID) return; CHANNELS.forEach(ch => startStream(ch, 'dosari'));     await ctx.reply(`🎙️ ${SOURCES.dosari.name}`)     })
+bot.command('abdulbasit', async ctx => { if (ctx.from.id !== ADMIN_ID) return; CHANNELS.forEach(ch => startStream(ch, 'abdulbasit')); await ctx.reply(`🎙️ ${SOURCES.abdulbasit.name}`) })
+bot.command('minshawi',   async ctx => { if (ctx.from.id !== ADMIN_ID) return; CHANNELS.forEach(ch => startStream(ch, 'minshawi'));   await ctx.reply(`🎙️ ${SOURCES.minshawi.name}`)   })
+bot.command('qatami',     async ctx => { if (ctx.from.id !== ADMIN_ID) return; CHANNELS.forEach(ch => startStream(ch, 'qatami'));     await ctx.reply(`🎙️ ${SOURCES.qatami.name}`)     })
+bot.command('hussary',    async ctx => { if (ctx.from.id !== ADMIN_ID) return; CHANNELS.forEach(ch => startStream(ch, 'hussary'));    await ctx.reply(`🎙️ ${SOURCES.hussary.name}`)    })
+bot.command('muaiqly',    async ctx => { if (ctx.from.id !== ADMIN_ID) return; CHANNELS.forEach(ch => startStream(ch, 'muaiqly'));    await ctx.reply(`🎙️ ${SOURCES.muaiqly.name}`)    })
+bot.command('alafasy',    async ctx => { if (ctx.from.id !== ADMIN_ID) return; CHANNELS.forEach(ch => startStream(ch, 'alafasy'));    await ctx.reply(`🎙️ ${SOURCES.alafasy.name}`)    })
+bot.command('restart',    async ctx => { if (ctx.from.id !== ADMIN_ID) return; startAll();  await ctx.reply('🔄 جاري إعادة التشغيل...') })
+bot.command('stop',       async ctx => { if (ctx.from.id !== ADMIN_ID) return; stopAll();   await ctx.reply('⏹ تم الإيقاف') })
 
 bot.command('status', async ctx => {
   if (ctx.from.id !== ADMIN_ID) return
@@ -390,20 +360,14 @@ bot.command('list', async ctx => {
   if (ctx.from.id !== ADMIN_ID) return
   let msg = `📋 *المصادر المتاحة:*\n\n`
   for (const [key, src] of Object.entries(SOURCES)) {
-    if (src.type === 'files') {
-      const files = getAudioFiles(src.dir)
-      msg += `• \`${key}\` — ${src.name} (${files.length} ملف محلي)\n`
-    } else if (src.type === 'online') {
-      msg += `• \`${key}\` — ${src.name} (114 سورة أونلاين)\n`
-    } else {
-      msg += `• \`${key}\` — ${src.name} (بث مباشر)\n`
-    }
+    const type = src.type === 'stream' ? 'بث مباشر' : src.type === 'online' ? '114 سورة أونلاين' : `${getAudioFiles(src.dir).length} ملف`
+    msg += `• \`${key}\` — ${src.name} (${type})\n`
   }
   await ctx.replyWithMarkdown(msg)
 })
 
 bot.launch({ dropPendingUpdates: true })
-  .catch(err => console.log('⚠️ Bot launch error:', err.message))
+  .catch(e => console.log('⚠️  Bot launch error:', e.message))
 
 console.log('🤖 Bot running!')
 
