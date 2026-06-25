@@ -161,7 +161,7 @@ function buildFFmpegCmd(src, dest, chId) {
       '-vf scale=1280:720,fps=25',
       '-b:v 800k -minrate 800k -maxrate 800k -bufsize 1600k -g 50',
       '-c:a aac -b:a 128k -ar 44100 -ac 2',
-      '-async 1 -fps_mode vfr',
+      '-async 1 -vsync 1',
       '-max_muxing_queue_size 1024',
       `-f flv "${dest}"`
     ].join(' ')
@@ -200,7 +200,7 @@ function buildFFmpegCmd(src, dest, chId) {
       '-vf scale=1280:720,fps=25',
       '-b:v 800k -minrate 800k -maxrate 800k -bufsize 1600k -g 50',
       '-c:a aac -b:a 128k -ar 44100 -ac 2',
-      '-async 1 -fps_mode vfr',
+      '-async 1 -vsync 1',
       '-max_muxing_queue_size 1024',
       `-f flv "${dest}"`
     ].join(' ')
@@ -224,7 +224,7 @@ function buildFFmpegCmd(src, dest, chId) {
       '-vf scale=1280:720,fps=25',
       '-b:v 800k -minrate 800k -maxrate 800k -bufsize 1600k -g 50',
       '-c:a aac -b:a 128k -ar 44100 -ac 2',
-      '-async 1 -fps_mode vfr',
+      '-async 1 -vsync 1',
       '-max_muxing_queue_size 1024',
       `-f flv "${dest}"`
     ].join(' ')
