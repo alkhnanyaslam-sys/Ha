@@ -96,12 +96,26 @@ function buildConcatList(files, chId) {
 }
 
 // ─── بناء videoInput ─────────────────────────────────────────────────────────
+function findImg(imgFile) {
+  // جرب الاسم كما هو، ثم بحرف أول كبير، ثم كله كبير
+  const candidates = [
+    imgFile,
+    imgFile.charAt(0).toUpperCase() + imgFile.slice(1),
+    imgFile.toUpperCase()
+  ]
+  for (const name of candidates) {
+    const p = path.join(__dirname, name)
+    if (fs.existsSync(p)) return p
+  }
+  return null
+}
+
 function buildVideoInput(imgFile) {
-  const img     = path.join(__dirname, imgFile)
+  const img     = findImg(imgFile)
   const isVideo = /\.(mp4|mkv|avi)$/i.test(imgFile)
-  if (!fs.existsSync(img)) return '-f lavfi -i color=black:s=1280x720:r=25'
-  if (isVideo)              return `-thread_queue_size 1024 -stream_loop -1 -re -i "${img}"`
-  return                           `-thread_queue_size 1024 -loop 1 -i "${img}"`
+  if (!img)    return '-f lavfi -i color=black:s=1280x720:r=25'
+  if (isVideo) return `-thread_queue_size 1024 -stream_loop -1 -re -i "${img}"`
+  return              `-thread_queue_size 1024 -loop 1 -i "${img}"`
 }
 
 // ─── بناء أمر ffmpeg ─────────────────────────────────────────────────────────
