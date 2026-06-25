@@ -24,19 +24,19 @@ const SOURCES = {
     name: '🎙️ ياسر الدوسري',
     type: 'online',
     base: 'https://server11.mp3quran.net/yasser/',
-    img:  'dosari.jpg'
+    img:  'dosari.png'
   },
   abdulbasit: {
     name: '🎙️ عبد الباسط عبد الصمد',
     type: 'online',
     base: 'https://server7.mp3quran.net/basit/',
-    img:  'abdulbasit.jpg'
+    img:  'abdulbasit.png'
   },
   minshawi: {
     name: '🎙️ محمد صديق المنشاوي',
     type: 'online',
     base: 'https://server10.mp3quran.net/minsh/',
-    img:  'minshawi.jpg'
+    img:  'minshawi.png'
   }
 }
 
