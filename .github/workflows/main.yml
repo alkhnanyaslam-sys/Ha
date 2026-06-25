@@ -27,9 +27,22 @@ jobs:
 
       - name: 🖼 Convert Images to Video
         run: |
-          ffmpeg -loop 1 -i mecca.png  -t 10 -c:v libx264 -preset ultrafast -vf "scale=1280:720,fps=25" -an mecca.mp4
-          ffmpeg -loop 1 -i madina.png -t 10 -c:v libx264 -preset ultrafast -vf "scale=1280:720,fps=25" -an madina.mp4
-          ffmpeg -loop 1 -i cairo.png  -t 10 -c:v libx264 -preset ultrafast -vf "scale=1280:720,fps=25" -an cairo.mp4
+          for img in mecca madina cairo; do
+            if [ -f "${img}.png" ]; then
+              ffmpeg -loop 1 -i "${img}.png" -t 10 \
+                -c:v libx264 -preset ultrafast \
+                -vf "scale=1280:720,fps=25" \
+                -an "${img}.mp4"
+            fi
+          done
+          for img in dosari abdulbasit minshawi; do
+            if [ -f "${img}.png" ]; then
+              ffmpeg -loop 1 -i "${img}.png" -t 10 \
+                -c:v libx264 -preset ultrafast \
+                -vf "scale=1280:720,fps=25" \
+                -an "${img}.mp4" || true
+            fi
+          done
 
       - name: 🕋 Start Quran Stream
         env:
