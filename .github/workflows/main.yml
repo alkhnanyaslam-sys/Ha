@@ -27,56 +27,22 @@ jobs:
 
       - name: 🖼 Convert Images to Video
         run: |
-          # دالة تتحقق من صحة PNG
-          is_valid_png() {
-            local f="$1"
-            [ -f "$f" ] && [ "$(wc -c < "$f")" -gt 100 ] && \
-            python3 -c "
-import sys
-with open(sys.argv[1],'rb') as f:
-    sig = f.read(8)
-    sys.exit(0 if sig == b'\x89PNG\r\n\x1a\n' else 1)
-" "$f" 2>/dev/null
-          }
-
-          # دالة تحويل صورة أو شاشة سوداء كبديل
-          convert_img() {
-            local base="$1"
-            # جرب حروف صغيرة وكبيرة
-            local PNG=""
-            for candidate in "${base}.png" "${base^}.png"; do
-              if is_valid_png "$candidate"; then
-                PNG="$candidate"
-                break
-              fi
-            done
-
-            if [ -n "$PNG" ]; then
-              echo "✅ تحويل $PNG → ${base}.mp4"
-              ffmpeg -y -loop 1 -i "$PNG" -t 10 \
-                -c:v libx264 -preset ultrafast \
-                -vf "scale=1280:720,fps=25" \
-                -pix_fmt yuv420p -an "${base}.mp4" \
-                && echo "✅ ${base}.mp4 جاهز" \
-                || { echo "⚠️ فشل — شاشة سوداء بديلة";
-                     ffmpeg -y -f lavfi -i color=black:s=1280x720:r=25 -t 10 \
-                       -c:v libx264 -preset ultrafast -pix_fmt yuv420p \
-                       -an "${base}.mp4"; }
-            else
-              echo "⚠️ ${base}.png غير موجود أو تالف — شاشة سوداء"
-              ffmpeg -y -f lavfi -i color=black:s=1280x720:r=25 -t 10 \
-                -c:v libx264 -preset ultrafast -pix_fmt yuv420p \
-                -an "${base}.mp4"
+          for name in mecca madina cairo dosari abdulbasit minshawi qatami hussary muaiqly alafasy; do
+            PNG="${name}.png"
+            OUT="${name}.mp4"
+            SIZE=0
+            if [ -f "$PNG" ]; then
+              SIZE=$(stat -c%s "$PNG")
             fi
-          }
-
-          for img in mecca madina cairo dosari abdulbasit minshawi \
-                     qatami hussary muaiqly alafasy; do
-            convert_img "$img"
+            if [ "$SIZE" -gt 1000 ]; then
+              echo "Converting $PNG"
+              ffmpeg -y -loop 1 -i "$PNG" -t 10 -c:v libx264 -preset ultrafast -vf "scale=1280:720,fps=25" -pix_fmt yuv420p -an "$OUT" > /dev/null 2>&1 && echo "OK: $OUT" || ffmpeg -y -f lavfi -i color=black:s=1280x720:r=25 -t 10 -c:v libx264 -preset ultrafast -pix_fmt yuv420p -an "$OUT" > /dev/null 2>&1
+            else
+              echo "No valid PNG for $name - using black screen"
+              ffmpeg -y -f lavfi -i color=black:s=1280x720:r=25 -t 10 -c:v libx264 -preset ultrafast -pix_fmt yuv420p -an "$OUT" > /dev/null 2>&1
+            fi
           done
-
-          echo "--- الملفات المنتجة ---"
-          ls -lh *.mp4 2>/dev/null || echo "لا توجد ملفات mp4"
+          ls -lh *.mp4
 
       - name: 🕋 Start Quran Stream
         env:
@@ -101,5 +67,3 @@ with open(sys.argv[1],'rb') as f:
           CHANNEL_6_KEY:    ${{ secrets.CHANNEL_6_KEY }}
           CHANNEL_6_SOURCE: ${{ secrets.CHANNEL_6_SOURCE }}
         run: node bot.js
-
-        .
