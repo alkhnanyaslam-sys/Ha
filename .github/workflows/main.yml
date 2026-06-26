@@ -31,14 +31,10 @@ jobs:
             PNG="${name}.png"
             OUT="${name}.mp4"
             SIZE=0
-            if [ -f "$PNG" ]; then
-              SIZE=$(stat -c%s "$PNG")
-            fi
+            if [ -f "$PNG" ]; then SIZE=$(stat -c%s "$PNG"); fi
             if [ "$SIZE" -gt 1000 ]; then
-              echo "Converting $PNG"
-              ffmpeg -y -loop 1 -i "$PNG" -t 10 -c:v libx264 -preset ultrafast -vf "scale=1280:720,fps=25" -pix_fmt yuv420p -an "$OUT" > /dev/null 2>&1 && echo "OK: $OUT" || ffmpeg -y -f lavfi -i color=black:s=1280x720:r=25 -t 10 -c:v libx264 -preset ultrafast -pix_fmt yuv420p -an "$OUT" > /dev/null 2>&1
+              ffmpeg -y -loop 1 -i "$PNG" -t 10 -c:v libx264 -preset ultrafast -vf "scale=1280:720,fps=25" -pix_fmt yuv420p -an "$OUT" > /dev/null 2>&1 && echo "✅ $OUT" || ffmpeg -y -f lavfi -i color=black:s=1280x720:r=25 -t 10 -c:v libx264 -preset ultrafast -pix_fmt yuv420p -an "$OUT" > /dev/null 2>&1
             else
-              echo "No valid PNG for $name - using black screen"
               ffmpeg -y -f lavfi -i color=black:s=1280x720:r=25 -t 10 -c:v libx264 -preset ultrafast -pix_fmt yuv420p -an "$OUT" > /dev/null 2>&1
             fi
           done
