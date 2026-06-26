@@ -194,8 +194,8 @@ function buildFFmpegCmd(src, dest, chId) {
       '-map 0:v:0 -map 1:a:0',
       '-c:v libx264 -preset ultrafast -tune stillimage -pix_fmt yuv420p',
       '-vf scale=1280:720,fps=25',
-      '-b:v 500k -maxrate 500k -bufsize 1000k -g 50',
-      '-c:a aac -b:a 128k -ar 44100 -ac 2',
+      '-b:v 2000k -maxrate 2500k -bufsize 4000k -g 50',
+      '-c:a aac -b:a 192k -ar 44100 -ac 2',
       '-async 1 -vsync 1',
       '-max_muxing_queue_size 1024',
       `-f flv "${dest}"`
@@ -220,8 +220,8 @@ function buildFFmpegCmd(src, dest, chId) {
       '-map 0:v:0 -map 1:a:0',
       '-c:v libx264 -preset ultrafast -tune stillimage -pix_fmt yuv420p',
       '-vf scale=1280:720,fps=25',
-      '-b:v 500k -maxrate 500k -bufsize 1000k -g 50',
-      '-c:a aac -b:a 128k -ar 44100 -ac 2',
+      '-b:v 2000k -maxrate 2500k -bufsize 4000k -g 50',
+      '-c:a aac -b:a 192k -ar 44100 -ac 2',
       '-async 1 -vsync 1',
       '-max_muxing_queue_size 1024',
       `-f flv "${dest}"`
@@ -261,7 +261,25 @@ function startStream(ch, sourceKey) {
   proc.on('exit', (code, signal) => {
     delete procs[ch.id]
 
-    if (code !== 0 && signal !== 'SIGKILL') {
+    if (src.type === 'online') {
+      // روتيت السورة دايماً بغض النظر عن كود الخروج
+      if (signal !== 'SIGKILL') {
+        if (code === 0) {
+          // السورة خلصت طبيعي — روح للتالية
+          currentSurah[ch.id] = (currentSurah[ch.id] % 114) + 1
+          console.log(`🔁 ${ch.id} → سورة ${currentSurah[ch.id]}`)
+          retries[ch.id] = 0
+          setTimeout(() => startStream(ch, ch.source), 500)
+        } else {
+          // فشل تحميل السورة — جرب التالية بعد ثانيتين
+          retries[ch.id]++
+          console.log(`⚠️  ${ch.id} سورة ${currentSurah[ch.id]} فشلت (كود ${code}) — التالية`)
+          currentSurah[ch.id] = (currentSurah[ch.id] % 114) + 1
+          const delay = Math.min(retries[ch.id] * 2000, 10000)
+          setTimeout(() => startStream(ch, ch.source), delay)
+        }
+      }
+    } else if (code !== 0 && signal !== 'SIGKILL') {
       retries[ch.id]++
       const delay = Math.min(retries[ch.id] * 5000, 30000)
       console.log(`🔄 ${ch.id} كود ${code} — محاولة ${retries[ch.id]}/${MAX_RETRY} بعد ${delay/1000}ث`)
@@ -274,14 +292,9 @@ function startStream(ch, sourceKey) {
       }
     } else {
       retries[ch.id] = 0
-      if (src.type === 'online') {
-        currentSurah[ch.id] = (currentSurah[ch.id] % 114) + 1
-        console.log(`🔁 ${ch.id} → سورة ${currentSurah[ch.id]}`)
-        setTimeout(() => startStream(ch, ch.source), 1000)
-      } else if (src.type === 'files') {
+      if (src.type === 'files') {
         setTimeout(() => startStream(ch, ch.source), 2000)
       } else {
-        // stream — إعادة تلقائية
         setTimeout(() => startStream(ch, ch.source), 3000)
       }
     }
