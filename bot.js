@@ -24,43 +24,50 @@ const SOURCES = {
     name: '🎙️ ياسر الدوسري',
     type: 'online',
     base: 'https://server11.mp3quran.net/yasser/',
-    img:  'dosari.png'
+    img:  'dosari.png',
+    surahs: [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59,60,61,62,63,64,65,66,67,68,69,70,71,72,73,74,75,76,77,78,79,80,81,82,83,84,85,86,87,88,89,90,91,92,93,94,95,96,97,98,99,100,101,102,103,104,105,106,107,108,109,110,111,112,113,114]
   },
   abdulbasit: {
     name: '🎙️ عبد الباسط عبد الصمد',
     type: 'online',
     base: 'https://server7.mp3quran.net/basit/',
-    img:  'abdulbasit.png'
+    img:  'abdulbasit.png',
+    surahs: [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59,60,61,62,63,64,65,66,67,68,69,70,71,72,73,74,75,76,77,78,79,80,81,82,83,84,85,86,87,88,89,90,91,92,93,94,95,96,97,98,99,100,101,102,103,104,105,106,107,108,109,110,111,112,113,114]
   },
   minshawi: {
     name: '🎙️ محمد صديق المنشاوي',
     type: 'online',
     base: 'https://server10.mp3quran.net/minsh/',
-    img:  'minshawi.png'
+    img:  'minshawi.png',
+    surahs: [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59,60,61,62,63,64,65,66,67,68,69,70,71,72,73,74,75,76,77,78,79,80,81,82,83,84,85,86,87,88,89,90,91,92,93,94,95,96,97,98,99,100,101,102,103,104,105,106,107,108,109,110,111,112,113,114]
   },
   qatami: {
     name: '🎙️ ناصر القطامي',
     type: 'online',
     base: 'https://server8.mp3quran.net/qtm/',
-    img:  'qatami.png'
+    img:  'qatami.png',
+    surahs: [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59,60,61,62,63,64,65,66,67,68,69,70,71,72,73,74,75,76,77,78,79,80,81,82,83,84,85,86,87,88,89,90,91,92,93,94,95,96,97,98,99,100,101,102,103,104,105,106,107,108,109,110,111,112,113,114]
   },
   hussary: {
     name: '🎙️ محمود خليل الحصري',
     type: 'online',
     base: 'https://server13.mp3quran.net/husr/',
-    img:  'hussary.png'
+    img:  'hussary.png',
+    surahs: [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59,60,61,62,63,64,65,66,67,68,69,70,71,72,73,74,75,76,77,78,79,80,81,82,83,84,85,86,87,88,89,90,91,92,93,94,95,96,97,98,99,100,101,102,103,104,105,106,107,108,109,110,111,112,113,114]
   },
   muaiqly: {
     name: '🎙️ ماهر المعيقلي',
     type: 'online',
     base: 'https://server12.mp3quran.net/maher/',
-    img:  'muaiqly.png'
+    img:  'muaiqly.png',
+    surahs: [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59,60,61,62,63,64,65,66,67,68,69,70,71,72,73,74,75,76,77,78,79,80,81,82,83,84,85,86,87,88,89,90,91,92,93,94,95,96,97,98,99,100,101,102,103,104,105,106,107,108,109,110,111,112,113,114]
   },
   alafasy: {
     name: '🎙️ مشاري راشد العفاسي',
     type: 'online',
     base: 'https://server8.mp3quran.net/afs/',
-    img:  'alafasy.png'
+    img:  'alafasy.png',
+    surahs: [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59,60,61,62,63,64,65,66,67,68,69,70,71,72,73,74,75,76,77,78,79,80,81,82,83,84,85,86,87,88,89,90,91,92,93,94,95,96,97,98,99,100,101,102,103,104,105,106,107,108,109,110,111,112,113,114]
   }
 }
 
@@ -206,7 +213,8 @@ function buildFFmpegCmd(src, dest, chId) {
   // سور أونلاين — سورة واحدة في كل مرة
   // ════════════════════════════════════════════════════
   if (src.type === 'online') {
-    if (!currentSurah[chId]) currentSurah[chId] = 1
+    const available  = src.surahs || Array.from({length:114},(_,i)=>i+1)
+    if (!currentSurah[chId]) currentSurah[chId] = available[Math.floor(Math.random()*available.length)]
     const num        = String(currentSurah[chId]).padStart(3, '0')
     const url        = `${src.base}${num}.mp3`
     const videoInput = buildVideoInput(src.img)
@@ -244,7 +252,7 @@ function startStream(ch, sourceKey) {
 
   ch.source = key
   if (!retries[ch.id])      retries[ch.id]      = 0
-  if (!currentSurah[ch.id]) currentSurah[ch.id] = Math.floor(Math.random() * 114) + 1
+  if (!currentSurah[ch.id]) { const av = SOURCES[ch.source]?.surahs || Array.from({length:114},(_,i)=>i+1); currentSurah[ch.id] = av[Math.floor(Math.random()*av.length)] }
 
   let cmd
   try   { cmd = buildFFmpegCmd(src, dest, ch.id) }
@@ -264,7 +272,8 @@ function startStream(ch, sourceKey) {
     if (src.type === 'online') {
       // روتيت عشوائي دايماً بغض النظر عن كود الخروج
       if (signal !== 'SIGKILL') {
-        const next = Math.floor(Math.random() * 114) + 1
+        const available = SOURCES[ch.source]?.surahs || Array.from({length:114},(_,i)=>i+1)
+        const next = available[Math.floor(Math.random() * available.length)]
         currentSurah[ch.id] = next
         retries[ch.id] = 0
         const delay = code === 0 ? 500 : 2000
@@ -353,7 +362,7 @@ bot.command('set', async ctx => {
   }
   const ch = CHANNELS.find(c => c.id === chId)
   if (!ch) return ctx.reply(`❌ القناة ${chId} غير موجودة`)
-  currentSurah[chId] = 1
+  const _av = SOURCES[srcKey]?.surahs || Array.from({length:114},(_,i)=>i+1); currentSurah[chId] = _av[Math.floor(Math.random()*_av.length)]
   startStream(ch, srcKey)
   await ctx.reply(`✅ ${chId} → ${SOURCES[srcKey].name}`)
 })
