@@ -224,7 +224,7 @@ function buildFFmpegCmd(src, dest, chId) {
       videoInput,
       '-thread_queue_size 4096',
       '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5',
-`-re -i "${url}"`,
+      `-re -i "${url}"`,
       '-map 0:v:0 -map 1:a:0',
       '-c:v libx264 -preset ultrafast -tune stillimage -pix_fmt yuv420p',
       '-vf scale=1280:720,fps=25',
