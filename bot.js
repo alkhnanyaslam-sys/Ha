@@ -182,7 +182,7 @@ function buildOnlineCmd(src, dest, chId) {
     '-re',
     videoInput,
     '-thread_queue_size 8192',
-    '-reconnect 1 -reconnect_streamed 1 -reconnect_at_eof 1 -reconnect_delay_max 5',
+    
     `-protocol_whitelist file,http,https,tcp,tls,crypto`,
     `-f concat -safe 0 -i "${playlist}"`,
     '-map 0:v:0 -map 1:a:0',
