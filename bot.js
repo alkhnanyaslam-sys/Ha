@@ -217,14 +217,26 @@ function buildFFmpegCmd(src, dest, chId) {
     if (!currentSurah[chId]) currentSurah[chId] = available[Math.floor(Math.random()*available.length)]
     const num        = String(currentSurah[chId]).padStart(3, '0')
     const url        = `${src.base}${num}.mp3`
+    const localFile  = `/tmp/surah_${chId}_${num}.mp3`
     const videoInput = buildVideoInput(src.img)
+
+    // حمّل السورة أولاً لتجنب التقطع
+    const dlCmd = `curl -fsSL -A "Mozilla/5.0" -H "Referer: https://www.mp3quran.net/" "${url}" -o "${localFile}" --max-time 60 --retry 3`
+    try {
+      require('child_process').execSync(dlCmd, { timeout: 65000 })
+    } catch(e) {
+      console.log(`⚠️  ${chId}: فشل تحميل السورة ${num}`)
+    }
+
+    const audioInput = fs.existsSync(localFile) && fs.statSync(localFile).size > 1000
+      ? `-i "${localFile}"`
+      : `-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5 -re -i "${url}"`
 
     return [
       'ffmpeg -y -hide_banner -loglevel error',
       videoInput,
       '-thread_queue_size 4096',
-      '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5',
-      `-re -i "${url}"`,
+      audioInput,
       '-map 0:v:0 -map 1:a:0',
       '-c:v libx264 -preset ultrafast -tune stillimage -pix_fmt yuv420p',
       '-vf scale=1280:720,fps=25',
@@ -270,6 +282,9 @@ function startStream(ch, sourceKey) {
     delete procs[ch.id]
 
     if (src.type === 'online') {
+      // حذف ملف السورة المؤقت
+      const oldFile = `/tmp/surah_${ch.id}_${String(currentSurah[ch.id]).padStart(3,'0')}.mp3`
+      try { fs.unlinkSync(oldFile) } catch(e) {}
       // روتيت عشوائي دايماً بغض النظر عن كود الخروج
       if (signal !== 'SIGKILL') {
         const available = SOURCES[ch.source]?.surahs || Array.from({length:114},(_,i)=>i+1)
