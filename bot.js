@@ -165,7 +165,8 @@ function buildFFmpegCmd(src, dest, chId) {
       '-vf scale=1280:720,fps=25',
       '-b:v 500k -maxrate 600k -bufsize 1000k -g 50',
       '-c:a aac -b:a 128k -ar 44100 -ac 2',
-      '-max_muxing_queue_size 2048',
+      '-max_muxing_queue_size 4096',
+      '-flvflags no_duration_filesize',
       `-f flv "${dest}"`
     ].join(' ')
   }
@@ -234,16 +235,18 @@ function buildFFmpegCmd(src, dest, chId) {
 
     return [
       'ffmpeg -y -hide_banner -loglevel error',
+      '-re',                          // real-time على الفيديو بس
       videoInput,
-      '-thread_queue_size 4096',
+      '-thread_queue_size 8192',
       audioInput,
       '-map 0:v:0 -map 1:a:0',
       '-c:v libx264 -preset ultrafast -tune stillimage -pix_fmt yuv420p',
       '-vf scale=1280:720,fps=25',
-      '-b:v 500k -maxrate 600k -bufsize 1000k -g 50',
+      '-b:v 500k -maxrate 600k -bufsize 2000k -g 50',
       '-c:a aac -b:a 128k -ar 44100 -ac 2',
       '-async 1 -vsync 1',
-      '-max_muxing_queue_size 1024',
+      '-max_muxing_queue_size 4096',
+      '-flvflags no_duration_filesize',
       `-f flv "${dest}"`
     ].join(' ')
   }
