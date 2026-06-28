@@ -1,11 +1,17 @@
 require('dotenv').config()
 const { Telegraf } = require('telegraf')
-const { exec }    = require('child_process')
-const path        = require('path')
-const fs          = require('fs')
+const { exec, execSync, spawn } = require('child_process')
+const path = require('path')
+const fs   = require('fs')
 
 const bot      = new Telegraf(process.env.BOT_TOKEN)
 const ADMIN_ID = Number(process.env.ADMIN_ID)
+
+const ALL = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,
+  25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,
+  50,51,52,53,54,55,56,57,58,59,60,61,62,63,64,65,66,67,68,69,70,71,72,73,74,
+  75,76,77,78,79,80,81,82,83,84,85,86,87,88,89,90,91,92,93,94,95,96,97,98,99,
+  100,101,102,103,104,105,106,107,108,109,110,111,112,113,114]
 
 const SOURCES = {
   mecca: {
@@ -25,49 +31,49 @@ const SOURCES = {
     type: 'online',
     base: 'https://server11.mp3quran.net/yasser/',
     img:  'dosari.png',
-    surahs: [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59,60,61,62,63,64,65,66,67,68,69,70,71,72,73,74,75,76,77,78,79,80,81,82,83,84,85,86,87,88,89,90,91,92,93,94,95,96,97,98,99,100,101,102,103,104,105,106,107,108,109,110,111,112,113,114]
+    surahs: ALL
   },
   abdulbasit: {
     name: '🎙️ عبد الباسط عبد الصمد',
     type: 'online',
     base: 'https://server7.mp3quran.net/basit/',
     img:  'abdulbasit.png',
-    surahs: [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59,60,61,62,63,64,65,66,67,68,69,70,71,72,73,74,75,76,77,78,79,80,81,82,83,84,85,86,87,88,89,90,91,92,93,94,95,96,97,98,99,100,101,102,103,104,105,106,107,108,109,110,111,112,113,114]
+    surahs: ALL
   },
   minshawi: {
     name: '🎙️ محمد صديق المنشاوي',
     type: 'online',
     base: 'https://server10.mp3quran.net/minsh/',
     img:  'minshawi.png',
-    surahs: [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59,60,61,62,63,64,65,66,67,68,69,70,71,72,73,74,75,76,77,78,79,80,81,82,83,84,85,86,87,88,89,90,91,92,93,94,95,96,97,98,99,100,101,102,103,104,105,106,107,108,109,110,111,112,113,114]
+    surahs: ALL
   },
   qatami: {
     name: '🎙️ ناصر القطامي',
     type: 'online',
     base: 'https://server8.mp3quran.net/qtm/',
     img:  'qatami.png',
-    surahs: [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59,60,61,62,63,64,65,66,67,68,69,70,71,72,73,74,75,76,77,78,79,80,81,82,83,84,85,86,87,88,89,90,91,92,93,94,95,96,97,98,99,100,101,102,103,104,105,106,107,108,109,110,111,112,113,114]
+    surahs: ALL
   },
   hussary: {
     name: '🎙️ محمود خليل الحصري',
     type: 'online',
     base: 'https://server13.mp3quran.net/husr/',
     img:  'hussary.png',
-    surahs: [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59,60,61,62,63,64,65,66,67,68,69,70,71,72,73,74,75,76,77,78,79,80,81,82,83,84,85,86,87,88,89,90,91,92,93,94,95,96,97,98,99,100,101,102,103,104,105,106,107,108,109,110,111,112,113,114]
+    surahs: ALL
   },
   muaiqly: {
     name: '🎙️ ماهر المعيقلي',
     type: 'online',
     base: 'https://server12.mp3quran.net/maher/',
     img:  'muaiqly.png',
-    surahs: [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59,60,61,62,63,64,65,66,67,68,69,70,71,72,73,74,75,76,77,78,79,80,81,82,83,84,85,86,87,88,89,90,91,92,93,94,95,96,97,98,99,100,101,102,103,104,105,106,107,108,109,110,111,112,113,114]
+    surahs: ALL
   },
   alafasy: {
     name: '🎙️ مشاري راشد العفاسي',
     type: 'online',
     base: 'https://server8.mp3quran.net/afs/',
     img:  'alafasy.png',
-    surahs: [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59,60,61,62,63,64,65,66,67,68,69,70,71,72,73,74,75,76,77,78,79,80,81,82,83,84,85,86,87,88,89,90,91,92,93,94,95,96,97,98,99,100,101,102,103,104,105,106,107,108,109,110,111,112,113,114]
+    surahs: ALL
   }
 }
 
@@ -80,37 +86,15 @@ const CHANNELS = [
   { id: 'ch6', rtmp: process.env.CHANNEL_6_RTMP, key: process.env.CHANNEL_6_KEY, source: process.env.CHANNEL_6_SOURCE || 'mecca'      },
 ].filter(ch => ch.rtmp && ch.key)
 
-const procs        = {}
-const retries      = {}
-const currentSurah = {}
-const MAX_RETRY    = 5
+const procs    = {}
+const retries  = {}
+const MAX_RETRY = 5
+const UA  = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+const REF = 'https://www.mp3quran.net/'
 
-// ─── ملفات محلية ────────────────────────────────────────────────────────────
-function getAudioFiles(dir) {
-  const fullDir = path.join(__dirname, dir)
-  if (!fs.existsSync(fullDir)) return []
-  return fs.readdirSync(fullDir)
-    .filter(f => /\.(mp3|aac|m4a|opus|flac|wav)$/i.test(f))
-    .sort()
-    .map(f => path.join(fullDir, f))
-}
-
-function buildConcatList(files, chId) {
-  const listPath = path.join('/tmp', `concat_${chId}.txt`)
-  const repeated = Array(999).fill(files).flat()
-  fs.writeFileSync(listPath, repeated.map(f => `file '${f}'`).join('\n'), 'utf8')
-  return listPath
-}
-
-// ─── بناء videoInput ─────────────────────────────────────────────────────────
+// ─── صور ────────────────────────────────────────────────────────────────────
 function findImg(imgFile) {
-  // جرب الاسم كما هو، ثم بحرف أول كبير، ثم كله كبير
-  const candidates = [
-    imgFile,
-    imgFile.charAt(0).toUpperCase() + imgFile.slice(1),
-    imgFile.toUpperCase()
-  ]
-  for (const name of candidates) {
+  for (const name of [imgFile, imgFile[0].toUpperCase() + imgFile.slice(1)]) {
     const p = path.join(__dirname, name)
     if (fs.existsSync(p)) return p
   }
@@ -125,130 +109,126 @@ function buildVideoInput(imgFile) {
   return              `-thread_queue_size 1024 -loop 1 -i "${img}"`
 }
 
+// ─── تحميل سورة ─────────────────────────────────────────────────────────────
+function downloadSurah(base, num, dest) {
+  const url = `${base}${String(num).padStart(3,'0')}.mp3`
+  try {
+    execSync(
+      `curl -fsSL -A "${UA}" -H "Referer: ${REF}" "${url}" -o "${dest}" --max-time 45 --retry 2`,
+      { timeout: 50000, stdio: 'pipe' }
+    )
+    return fs.existsSync(dest) && fs.statSync(dest).size > 1000
+  } catch(e) { return false }
+}
+
+// ─── بناء playlist محلية + تحميل مسبق ──────────────────────────────────────
+function buildOnlineCmd(src, dest, chId) {
+  const available  = src.surahs || ALL
+  const cacheDir   = `/tmp/qcache_${chId}`
+  const playlist   = `/tmp/playlist_${chId}.txt`
+
+  fs.mkdirSync(cacheDir, { recursive: true })
+
+  // shuffle
+  const shuffled = [...available].sort(() => Math.random() - 0.5)
+
+  // حمّل أول 8 سور قبل البث عشان يملي الـ buffer
+  console.log(`⏬ ${chId}: جاري تحميل السور...`)
+  let downloaded = 0
+  for (const n of shuffled) {
+    if (downloaded >= 8) break
+    const file = `${cacheDir}/${String(n).padStart(3,'0')}.mp3`
+    if (fs.existsSync(file) && fs.statSync(file).size > 1000) {
+      downloaded++
+      continue
+    }
+    if (downloadSurah(src.base, n, file)) downloaded++
+  }
+  console.log(`✅ ${chId}: تم تحميل ${downloaded} سورة`)
+
+  // ابدأ background downloader للباقي
+  const bgLines = shuffled.map(n => {
+    const num  = String(n).padStart(3,'0')
+    const file = `${cacheDir}/${num}.mp3`
+    const url  = `${src.base}${num}.mp3`
+    return `if (!fs.existsSync('${file}') || fs.statSync('${file}').size < 1000) { try { execSync('curl -fsSL -A "${UA}" -H "Referer: ${REF}" "${url}" -o "${file}" --max-time 45', {timeout:50000,stdio:"pipe"}); } catch(e){} }`
+  }).join('\n')
+
+  const bgScript = `const {execSync}=require('child_process');const fs=require('fs');\n${bgLines}\n`
+  const bgFile   = `/tmp/bg_${chId}.js`
+  fs.writeFileSync(bgFile, bgScript)
+  spawn('node', [bgFile], { detached: true, stdio: 'ignore' }).unref()
+
+  // بناء playlist — 10 دورات عشوائية من الملفات المحلية
+  const bigList = Array(10).fill(shuffled).flat()
+  const lines   = bigList.map(n => {
+    const file = `${cacheDir}/${String(n).padStart(3,'0')}.mp3`
+    return fs.existsSync(file) && fs.statSync(file).size > 1000
+      ? `file '${file}'`
+      : null
+  }).filter(Boolean).join('\n')
+
+  // لو مفيش ملفات محلية كافية استخدم URLs
+  const finalLines = lines || shuffled.map(n =>
+    `file '${src.base}${String(n).padStart(3,'0')}.mp3'`
+  ).join('\n')
+
+  fs.writeFileSync(playlist, finalLines, 'utf8')
+
+  const videoInput = buildVideoInput(src.img)
+
+  return [
+    'ffmpeg -y -hide_banner -loglevel error',
+    '-re',
+    videoInput,
+    '-thread_queue_size 8192',
+    '-reconnect 1 -reconnect_streamed 1 -reconnect_at_eof 1 -reconnect_delay_max 5',
+    `-protocol_whitelist file,http,https,tcp,tls,crypto`,
+    `-f concat -safe 0 -i "${playlist}"`,
+    '-map 0:v:0 -map 1:a:0',
+    '-c:v libx264 -preset ultrafast -tune stillimage -pix_fmt yuv420p',
+    '-vf scale=1280:720,fps=25',
+    '-b:v 500k -maxrate 600k -bufsize 3000k -g 50',
+    '-c:a aac -b:a 128k -ar 44100 -ac 2',
+    '-async 1 -vsync 1',
+    '-max_muxing_queue_size 4096',
+    '-flvflags no_duration_filesize',
+    `-f flv "${dest}"`
+  ].join(' ')
+}
+
 // ─── بناء أمر ffmpeg ─────────────────────────────────────────────────────────
 function buildFFmpegCmd(src, dest, chId) {
 
-  // ════════════════════════════════════════════════════
-  // بث مباشر (راديو) — mecca / cairo
-  // ════════════════════════════════════════════════════
   if (src.type === 'stream') {
-    const img        = path.join(__dirname, src.img)
-    const imgExists  = fs.existsSync(img)
+    const img        = findImg(src.img)
     const isVideo    = /\.(mp4|mkv|avi)$/i.test(src.img)
-
-    // فيديو الخلفية
-    const videoInput = !imgExists
+    const videoInput = !img
       ? '-f lavfi -i color=black:s=1280x720:r=25'
       : isVideo
         ? `-thread_queue_size 1024 -stream_loop -1 -re -i "${img}"`
         : `-thread_queue_size 1024 -loop 1 -i "${img}"`
 
-    // خيارات الصوت المباشر — reconnect ضروري جداً
-    const audioOpts = [
-      '-thread_queue_size 4096',
-      '-reconnect 1',
-      '-reconnect_streamed 1',
-      '-reconnect_at_eof 1',
-      '-reconnect_delay_max 10',
-      '-rw_timeout 20000000',
-      '-probesize 10M',
-      '-analyzeduration 10M'
-    ].join(' ')
-
     return [
       'ffmpeg -y -hide_banner -loglevel error',
       videoInput,
-      audioOpts,
+      '-thread_queue_size 4096',
+      '-reconnect 1 -reconnect_streamed 1 -reconnect_at_eof 1 -reconnect_delay_max 10',
+      `-rw_timeout 20000000 -probesize 10M -analyzeduration 10M`,
       `-i "${src.url}"`,
-      '-map 0:v:0 -map 1:a:0',
-      '-c:v libx264 -preset ultrafast -tune stillimage -pix_fmt yuv420p',
-      '-vf scale=1280:720,fps=25',
-      '-b:v 500k -maxrate 600k -bufsize 1000k -g 50',
-      '-c:a aac -b:a 128k -ar 44100 -ac 2',
-      '-max_muxing_queue_size 4096',
-      '-flvflags no_duration_filesize',
-      `-f flv "${dest}"`
-    ].join(' ')
-  }
-
-  // ════════════════════════════════════════════════════
-  // ملفات محلية
-  // ════════════════════════════════════════════════════
-  if (src.type === 'files') {
-    const files      = getAudioFiles(src.dir)
-    const videoInput = buildVideoInput(src.img)
-
-    if (files.length === 0) {
-      return [
-        'ffmpeg -y -hide_banner -loglevel error',
-        videoInput,
-        '-f lavfi -i anullsrc=r=44100:cl=stereo',
-        '-map 0:v -map 1:a',
-        '-c:v libx264 -preset ultrafast -tune stillimage -pix_fmt yuv420p',
-        '-vf scale=1280:720,fps=25',
-        '-b:v 500k -g 50',
-        '-c:a aac -b:a 128k -ar 44100 -ac 2',
-        '-max_muxing_queue_size 1024',
-        `-f flv "${dest}"`
-      ].join(' ')
-    }
-
-    const listPath = buildConcatList(files, chId)
-    return [
-      'ffmpeg -y -hide_banner -loglevel error',
-      videoInput,
-      '-thread_queue_size 4096',
-      `-f concat -safe 0 -i "${listPath}"`,
-      '-map 0:v:0 -map 1:a:0',
-      '-c:v libx264 -preset ultrafast -tune stillimage -pix_fmt yuv420p',
-      '-vf scale=1280:720,fps=25',
-      '-b:v 500k -maxrate 600k -bufsize 1000k -g 50',
-      '-c:a aac -b:a 128k -ar 44100 -ac 2',
-      '-async 1 -vsync 1',
-      '-max_muxing_queue_size 1024',
-      `-f flv "${dest}"`
-    ].join(' ')
-  }
-
-  // ════════════════════════════════════════════════════
-  // سور أونلاين — سورة واحدة في كل مرة
-  // ════════════════════════════════════════════════════
-  if (src.type === 'online') {
-    const available  = src.surahs || Array.from({length:114},(_,i)=>i+1)
-    if (!currentSurah[chId]) currentSurah[chId] = available[Math.floor(Math.random()*available.length)]
-    const num        = String(currentSurah[chId]).padStart(3, '0')
-    const url        = `${src.base}${num}.mp3`
-    const localFile  = `/tmp/surah_${chId}_${num}.mp3`
-    const videoInput = buildVideoInput(src.img)
-
-    // حمّل السورة أولاً لتجنب التقطع
-    const dlCmd = `curl -fsSL -A "Mozilla/5.0" -H "Referer: https://www.mp3quran.net/" "${url}" -o "${localFile}" --max-time 60 --retry 3`
-    try {
-      require('child_process').execSync(dlCmd, { timeout: 65000 })
-    } catch(e) {
-      console.log(`⚠️  ${chId}: فشل تحميل السورة ${num}`)
-    }
-
-    const audioInput = fs.existsSync(localFile) && fs.statSync(localFile).size > 1000
-      ? `-i "${localFile}"`
-      : `-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5 -re -i "${url}"`
-
-    return [
-      'ffmpeg -y -hide_banner -loglevel error',
-      '-re',                          // real-time على الفيديو بس
-      videoInput,
-      '-thread_queue_size 8192',
-      audioInput,
       '-map 0:v:0 -map 1:a:0',
       '-c:v libx264 -preset ultrafast -tune stillimage -pix_fmt yuv420p',
       '-vf scale=1280:720,fps=25',
       '-b:v 500k -maxrate 600k -bufsize 2000k -g 50',
       '-c:a aac -b:a 128k -ar 44100 -ac 2',
-      '-async 1 -vsync 1',
       '-max_muxing_queue_size 4096',
       '-flvflags no_duration_filesize',
       `-f flv "${dest}"`
     ].join(' ')
+  }
+
+  if (src.type === 'online') {
+    return buildOnlineCmd(src, dest, chId)
   }
 
   throw new Error(`نوع مصدر غير معروف: ${src.type}`)
@@ -265,40 +245,26 @@ function startStream(ch, sourceKey) {
     delete procs[ch.id]
   }
 
-  ch.source = key
-  if (!retries[ch.id])      retries[ch.id]      = 0
-  if (!currentSurah[ch.id]) { const av = SOURCES[ch.source]?.surahs || Array.from({length:114},(_,i)=>i+1); currentSurah[ch.id] = av[Math.floor(Math.random()*av.length)] }
+  ch.source           = key
+  retries[ch.id]      = retries[ch.id] || 0
 
   let cmd
   try   { cmd = buildFFmpegCmd(src, dest, ch.id) }
-  catch (err) { console.log(`❌ ${ch.id} خطأ: ${err.message}`); return }
+  catch (err) { console.log(`❌ ${ch.id}: ${err.message}`); return }
 
-  console.log(`▶️  ${ch.id} [${src.name}]${src.type === 'online' ? ` سورة ${currentSurah[ch.id]}` : ''}`)
+  console.log(`▶️  ${ch.id} → ${src.name}`)
   const proc = exec(cmd, { shell: '/bin/bash', maxBuffer: 1024 * 1024 * 10 })
 
   proc.stderr?.on('data', d => {
     const msg = d.toString().trim()
-    if (msg) console.log(`⚠️  ${ch.id}: ${msg.substring(0, 300)}`)
+    if (msg) console.log(`⚠️  ${ch.id}: ${msg.substring(0, 200)}`)
   })
 
   proc.on('exit', (code, signal) => {
     delete procs[ch.id]
+    if (signal === 'SIGKILL') return
 
-    if (src.type === 'online') {
-      // حذف ملف السورة المؤقت
-      const oldFile = `/tmp/surah_${ch.id}_${String(currentSurah[ch.id]).padStart(3,'0')}.mp3`
-      try { fs.unlinkSync(oldFile) } catch(e) {}
-      // روتيت عشوائي دايماً بغض النظر عن كود الخروج
-      if (signal !== 'SIGKILL') {
-        const available = SOURCES[ch.source]?.surahs || Array.from({length:114},(_,i)=>i+1)
-        const next = available[Math.floor(Math.random() * available.length)]
-        currentSurah[ch.id] = next
-        retries[ch.id] = 0
-        const delay = code === 0 ? 500 : 2000
-        console.log(`🔀 ${ch.id} → سورة ${next} (عشوائي)`)
-        setTimeout(() => startStream(ch, ch.source), delay)
-      }
-    } else if (code !== 0 && signal !== 'SIGKILL') {
+    if (code !== 0) {
       retries[ch.id]++
       const delay = Math.min(retries[ch.id] * 5000, 30000)
       console.log(`🔄 ${ch.id} كود ${code} — محاولة ${retries[ch.id]}/${MAX_RETRY} بعد ${delay/1000}ث`)
@@ -306,16 +272,12 @@ function startStream(ch, sourceKey) {
         setTimeout(() => startStream(ch, ch.source), delay)
       } else {
         retries[ch.id] = 0
-        notifyAdmin(`❌ قناة ${ch.id} فشلت ${MAX_RETRY} مرات — إعادة بعد 5 دقائق`)
+        notifyAdmin(`❌ قناة ${ch.id} فشلت ${MAX_RETRY} مرات`)
         setTimeout(() => startStream(ch, ch.source), 5 * 60 * 1000)
       }
     } else {
       retries[ch.id] = 0
-      if (src.type === 'files') {
-        setTimeout(() => startStream(ch, ch.source), 2000)
-      } else {
-        setTimeout(() => startStream(ch, ch.source), 3000)
-      }
+      setTimeout(() => startStream(ch, ch.source), 1000)
     }
   })
 
@@ -324,7 +286,7 @@ function startStream(ch, sourceKey) {
 }
 
 function startAll() {
-  CHANNELS.forEach((ch, i) => setTimeout(() => startStream(ch, ch.source), i * 3000))
+  CHANNELS.forEach((ch, i) => setTimeout(() => startStream(ch, ch.source), i * 5000))
 }
 
 function stopAll() {
@@ -338,15 +300,14 @@ function stopAll() {
 
 function notifyAdmin(msg) {
   bot.telegram.sendMessage(ADMIN_ID, msg, { parse_mode: 'Markdown' })
-    .catch(e => console.log('⚠️  Notify error:', e.message))
+    .catch(e => console.log('⚠️  Notify:', e.message))
 }
 
 function getStatus() {
   let txt = `📊 *الحالة:*\n\n`
   CHANNELS.forEach(ch => {
-    const src   = SOURCES[ch.source]?.name || '—'
-    const extra = SOURCES[ch.source]?.type === 'online' ? ` (سورة ${currentSurah[ch.id] || 1})` : ''
-    txt += procs[ch.id] ? `🟢 ${ch.id} — ${src}${extra}\n` : `🔴 ${ch.id} — متوقفة\n`
+    const name = SOURCES[ch.source]?.name || '—'
+    txt += procs[ch.id] ? `🟢 ${ch.id} — ${name}\n` : `🔴 ${ch.id} — متوقفة\n`
   })
   txt += `\n⏰ ${Math.floor(process.uptime() / 60)} دقيقة`
   return txt
@@ -355,7 +316,6 @@ function getStatus() {
 // ─── تشغيل ───────────────────────────────────────────────────────────────────
 startAll()
 
-// إعادة تشغيل البث المباشر كل ساعتين
 setInterval(() => {
   CHANNELS.forEach((ch, i) => {
     if (SOURCES[ch.source]?.type === 'stream') {
@@ -369,18 +329,16 @@ setTimeout(() => {
   CHANNELS.forEach(ch => { msg += `📡 ${ch.id}: ${SOURCES[ch.source]?.name || '—'}\n` })
   msg += `\n*/status* /list /restart /stop`
   notifyAdmin(msg)
-}, 10000)
+}, 15000)
 
 // ─── أوامر البوت ─────────────────────────────────────────────────────────────
 bot.command('set', async ctx => {
   if (ctx.from.id !== ADMIN_ID) return
   const [, chId, srcKey] = ctx.message.text.split(' ')
-  if (!chId || !srcKey || !SOURCES[srcKey]) {
+  if (!chId || !srcKey || !SOURCES[srcKey])
     return ctx.reply(`الاستخدام: /set ch1 mecca\nالمصادر: ${Object.keys(SOURCES).join(' | ')}`)
-  }
   const ch = CHANNELS.find(c => c.id === chId)
   if (!ch) return ctx.reply(`❌ القناة ${chId} غير موجودة`)
-  const _av = SOURCES[srcKey]?.surahs || Array.from({length:114},(_,i)=>i+1); currentSurah[chId] = _av[Math.floor(Math.random()*_av.length)]
   startStream(ch, srcKey)
   await ctx.reply(`✅ ${chId} → ${SOURCES[srcKey].name}`)
 })
@@ -406,8 +364,8 @@ bot.command('list', async ctx => {
   if (ctx.from.id !== ADMIN_ID) return
   let msg = `📋 *المصادر المتاحة:*\n\n`
   for (const [key, src] of Object.entries(SOURCES)) {
-    const type = src.type === 'stream' ? 'بث مباشر' : src.type === 'online' ? '114 سورة أونلاين' : `${getAudioFiles(src.dir).length} ملف`
-    msg += `• \`${key}\` — ${src.name} (${type})\n`
+    const t = src.type === 'stream' ? 'بث مباشر' : '114 سورة'
+    msg += `• \`${key}\` — ${src.name} (${t})\n`
   }
   await ctx.replyWithMarkdown(msg)
 })
