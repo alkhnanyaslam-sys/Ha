@@ -129,6 +129,11 @@ function markBadSurah(key, num) {
   }
 }
 
+function resetBadSurahs(key) {
+  badSurahsCache[key] = []
+  try { fs.writeFileSync(badSurahsFile(key), JSON.stringify([])) } catch (e) {}
+}
+
 // ─── تحميل سورة واحدة + توحيد الصيغة (منع التقطيع بين الملفات) ─────────────
 function downloadOne(base, num, dest, sourceKey) {
   if (fs.existsSync(dest) && fs.statSync(dest).size > 1000) return true
@@ -139,9 +144,8 @@ function downloadOne(base, num, dest, sourceKey) {
       `curl -fsSL -A "${UA}" -H "Referer: ${REF}" "${url}" -o "${tmp}" --max-time 30 --retry 1`,
       { timeout: 35000, stdio: 'pipe' }
     )
-    if (!fs.existsSync(tmp) || fs.statSync(tmp).size < 1000) throw new Error('empty')
+    if (!fs.existsSync(tmp) || fs.statSync(tmp).size < 1000) throw new Error('empty download')
 
-    // توحيد sample rate / channels / bitrate لكل الملفات عشان يمنع re-init الديكودر عند كل تبديل
     execSync(
       `ffmpeg -y -i "${tmp}" -ar 44100 -ac 2 -c:a libmp3lame -b:a 128k "${dest}"`,
       { timeout: 30000, stdio: 'pipe' }
@@ -192,12 +196,16 @@ async function downloadFullQuran(sourceKey, src, chId) {
   return cacheDir
 }
 
-function buildLocalPlaylist(cacheDir, playlist, sourceKey) {
+function countValidLocal(cacheDir, sourceKey) {
   const bad = new Set(loadBadSurahs(sourceKey))
-  const valid = ALL.filter(n => !bad.has(n)).filter(n => {
+  return ALL.filter(n => !bad.has(n)).filter(n => {
     const f = `${cacheDir}/${String(n).padStart(3, '0')}.mp3`
     return fs.existsSync(f) && fs.statSync(f).size > 1000
   })
+}
+
+function buildLocalPlaylist(cacheDir, playlist, sourceKey) {
+  const valid = countValidLocal(cacheDir, sourceKey)
   const bigList = Array(5).fill(valid).flat()
   const lines   = bigList.map(n => `file '${cacheDir}/${String(n).padStart(3, '0')}.mp3'`).join('\n')
   fs.writeFileSync(playlist, lines, 'utf8')
@@ -235,10 +243,21 @@ async function buildFFmpegCmd(src, dest, chId, sourceKey) {
   }
 
   if (src.type === 'online') {
-    const cacheDir = await downloadFullQuran(sourceKey, src, chId)
+    let cacheDir = await downloadFullQuran(sourceKey, src, chId)
+    let count    = countValidLocal(cacheDir, sourceKey).length
+
+    // لو مفيش أي سورة صالحة، امسح قائمة الـ bad (يمكن كانت خطأ قديم) وحاول تاني مرة واحدة
+    if (count === 0) {
+      console.log(`⚠️  ${chId}: 0 سورة صالحة لـ ${sourceKey} — إعادة تعيين القائمة السوداء وإعادة المحاولة`)
+      resetBadSurahs(sourceKey)
+      cacheDir = await downloadFullQuran(sourceKey, src, chId)
+      count    = countValidLocal(cacheDir, sourceKey).length
+    }
+
+    if (count === 0) throw new Error('لا توجد سور صالحة للتشغيل حتى بعد إعادة المحاولة')
+
     const playlist = `/tmp/playlist_${chId}.txt`
-    const count    = buildLocalPlaylist(cacheDir, playlist, sourceKey)
-    if (count === 0) throw new Error('لا توجد سور صالحة للتشغيل')
+    buildLocalPlaylist(cacheDir, playlist, sourceKey)
 
     const videoInput = buildVideoInput(src.img)
 
@@ -247,17 +266,16 @@ async function buildFFmpegCmd(src, dest, chId, sourceKey) {
       '-re',
       videoInput,
       '-thread_queue_size 8192',
-      `-thread_queue_size 8192 -protocol_whitelist file,http,https,tcp,tls,crypto`,
-      `-f concat -safe 0 -i "${playlist}"`,
+      `-protocol_whitelist file,http,https,tcp,tls,crypto`,
+      `-thread_queue_size 8192 -f concat -safe 0 -i "${playlist}"`,
       '-map 0:v:0 -map 1:a:0',
       '-af aresample=async=1:first_pts=0',
       '-c:v libx264 -preset ultrafast -tune stillimage -pix_fmt yuv420p',
       '-vf scale=1280:720,fps=25',
       '-b:v 500k -maxrate 600k -bufsize 6000k -g 50',
       '-c:a aac -b:a 128k -ar 44100 -ac 2',
-      '-async 1 -vsync cfr',
+      '-async 1 -vsync 1',
       '-max_muxing_queue_size 9999',
-      '-fflags +genpts+igndts',
       '-flvflags no_duration_filesize',
       `-f flv "${dest}"`
     ].join(' ')
@@ -282,7 +300,11 @@ async function startStream(ch, sourceKey) {
 
   let cmd
   try   { cmd = await buildFFmpegCmd(src, dest, ch.id, key) }
-  catch (err) { console.log(`❌ ${ch.id}: ${err.message}`); return }
+  catch (err) {
+    console.log(`❌ ${ch.id}: ${err.message}`)
+    notifyAdmin(`❌ ${ch.id} فشل التشغيل: ${err.message}`)
+    return
+  }
 
   console.log(`▶️  ${ch.id} → ${src.name}`)
   const proc = exec(cmd, { shell: '/bin/bash', maxBuffer: 1024 * 1024 * 10 })
@@ -359,7 +381,7 @@ setInterval(() => {
 setTimeout(() => {
   let msg = `✅ *بدأ البث*\n\n`
   CHANNELS.forEach(ch => { msg += `📡 ${ch.id}: ${SOURCES[ch.source]?.name || '—'}\n` })
-  msg += `\n*/status* /list /restart /stop`
+  msg += `\n*/status* /list /restart /stop /badlist`
   notifyAdmin(msg)
 }, 15000)
 
@@ -411,6 +433,14 @@ bot.command('badlist', async ctx => {
     msg += `• \`${key}\`: ${bad.length ? bad.join(', ') : 'لا يوجد'}\n`
   }
   await ctx.replyWithMarkdown(msg)
+})
+
+bot.command('resetcache', async ctx => {
+  if (ctx.from.id !== ADMIN_ID) return
+  const [, srcKey] = ctx.message.text.split(' ')
+  if (!srcKey || !SOURCES[srcKey]) return ctx.reply('الاستخدام: /resetcache qatami')
+  resetBadSurahs(srcKey)
+  await ctx.reply(`✅ تم مسح القائمة السوداء لـ ${srcKey}`)
 })
 
 bot.launch({ dropPendingUpdates: true })
