@@ -25,6 +25,26 @@ jobs:
       - name: Install dependencies
         run: npm install
 
+      - name: 📦 Cache Quran audio
+        uses: actions/cache@v4
+        with:
+          path: |
+            /tmp/qcache_dosari
+            /tmp/qcache_abdulbasit
+            /tmp/qcache_minshawi
+            /tmp/qcache_qatami
+            /tmp/qcache_hussary
+            /tmp/qcache_muaiqly
+            /tmp/qcache_alafasy
+            /tmp/bad_surahs_dosari.json
+            /tmp/bad_surahs_abdulbasit.json
+            /tmp/bad_surahs_minshawi.json
+            /tmp/bad_surahs_qatami.json
+            /tmp/bad_surahs_hussary.json
+            /tmp/bad_surahs_muaiqly.json
+            /tmp/bad_surahs_alafasy.json
+          key: quran-audio-cache-v1
+
       - name: 🖼 Convert Images to Video
         run: |
           for name in mecca madina cairo dosari abdulbasit minshawi qatami hussary muaiqly alafasy; do
