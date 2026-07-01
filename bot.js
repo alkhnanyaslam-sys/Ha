@@ -89,7 +89,6 @@ const CHANNELS = [
 const procs    = {}
 const retries  = {}
 const MAX_RETRY = 5
-const CONCURRENCY = 4
 const UA  = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
 const REF = 'https://www.mp3quran.net/'
 
@@ -110,110 +109,96 @@ function buildVideoInput(imgFile) {
   return              `-thread_queue_size 1024 -loop 1 -i "${img}"`
 }
 
-// ─── كاش السور الفاشلة (404 / غير متاحة) ────────────────────────────────────
-const badSurahsFile  = key => `/tmp/bad_surahs_${key}.json`
-const badSurahsCache = {}
-
-function loadBadSurahs(key) {
-  if (badSurahsCache[key]) return badSurahsCache[key]
-  try { badSurahsCache[key] = JSON.parse(fs.readFileSync(badSurahsFile(key), 'utf8')) }
-  catch (e) { badSurahsCache[key] = [] }
-  return badSurahsCache[key]
-}
-
-function markBadSurah(key, num) {
-  const list = loadBadSurahs(key)
-  if (!list.includes(num)) {
-    list.push(num)
-    try { fs.writeFileSync(badSurahsFile(key), JSON.stringify(list)) } catch (e) {}
-  }
-}
-
-function resetBadSurahs(key) {
-  badSurahsCache[key] = []
-  try { fs.writeFileSync(badSurahsFile(key), JSON.stringify([])) } catch (e) {}
-}
-
-// ─── تحميل سورة واحدة + توحيد الصيغة (منع التقطيع بين الملفات) ─────────────
-function downloadOne(base, num, dest, sourceKey) {
-  if (fs.existsSync(dest) && fs.statSync(dest).size > 1000) return true
-  const url = `${base}${String(num).padStart(3, '0')}.mp3`
-  const tmp = `${dest}.raw.mp3`
+// ─── تحميل سورة ─────────────────────────────────────────────────────────────
+function downloadSurah(base, num, dest) {
+  const url = `${base}${String(num).padStart(3,'0')}.mp3`
   try {
     execSync(
-      `curl -fsSL -A "${UA}" -H "Referer: ${REF}" "${url}" -o "${tmp}" --max-time 30 --retry 1`,
-      { timeout: 35000, stdio: 'pipe' }
+      `curl -fsSL -A "${UA}" -H "Referer: ${REF}" "${url}" -o "${dest}" --max-time 45 --retry 2`,
+      { timeout: 50000, stdio: 'pipe' }
     )
-    if (!fs.existsSync(tmp) || fs.statSync(tmp).size < 1000) throw new Error('empty download')
-
-    execSync(
-      `ffmpeg -y -i "${tmp}" -ar 44100 -ac 2 -c:a libmp3lame -b:a 128k "${dest}"`,
-      { timeout: 30000, stdio: 'pipe' }
-    )
-    try { fs.unlinkSync(tmp) } catch (_) {}
-
-    const ok = fs.existsSync(dest) && fs.statSync(dest).size > 1000
-    if (!ok) markBadSurah(sourceKey, num)
-    return ok
-  } catch (e) {
-    if (fs.existsSync(tmp))  { try { fs.unlinkSync(tmp)  } catch (_) {} }
-    if (fs.existsSync(dest)) { try { fs.unlinkSync(dest) } catch (_) {} }
-    markBadSurah(sourceKey, num)
-    return false
-  }
+    return fs.existsSync(dest) && fs.statSync(dest).size > 1000
+  } catch(e) { return false }
 }
 
-// ─── تحميل القرآن كامل لقارئ معيّن (كاش مشترك بين كل القنوات) ───────────────
-async function downloadFullQuran(sourceKey, src, chId) {
-  const bad      = new Set(loadBadSurahs(sourceKey))
-  const need     = ALL.filter(n => !bad.has(n))
-  const cacheDir = `/tmp/qcache_${sourceKey}`
+// ─── بناء playlist محلية + تحميل مسبق ──────────────────────────────────────
+function buildOnlineCmd(src, dest, chId) {
+  const available  = src.surahs || ALL
+  const cacheDir   = `/tmp/qcache_${chId}`
+  const playlist   = `/tmp/playlist_${chId}.txt`
+
   fs.mkdirSync(cacheDir, { recursive: true })
 
-  const todo = need.filter(n => {
-    const f = `${cacheDir}/${String(n).padStart(3, '0')}.mp3`
-    return !(fs.existsSync(f) && fs.statSync(f).size > 1000)
-  })
+  // shuffle
+  const shuffled = [...available].sort(() => Math.random() - 0.5)
 
-  console.log(`⏬ ${chId}: تحميل ${todo.length} سورة متبقية لـ ${sourceKey}...`)
-
-  let idx = 0, done = 0
-  await new Promise(resolve => {
-    if (todo.length === 0) return resolve()
-    const runNext = () => {
-      if (idx >= todo.length) { if (done >= todo.length) resolve(); return }
-      const n    = todo[idx++]
-      const file = `${cacheDir}/${String(n).padStart(3, '0')}.mp3`
-      downloadOne(src.base, n, file, sourceKey)
-      done++
-      if (done >= todo.length) resolve()
-      else runNext()
+  // حمّل أول 8 سور قبل البث عشان يملي الـ buffer
+  console.log(`⏬ ${chId}: جاري تحميل السور...`)
+  let downloaded = 0
+  for (const n of shuffled) {
+    if (downloaded >= 8) break
+    const file = `${cacheDir}/${String(n).padStart(3,'0')}.mp3`
+    if (fs.existsSync(file) && fs.statSync(file).size > 1000) {
+      downloaded++
+      continue
     }
-    for (let i = 0; i < CONCURRENCY; i++) runNext()
-  })
+    if (downloadSurah(src.base, n, file)) downloaded++
+  }
+  console.log(`✅ ${chId}: تم تحميل ${downloaded} سورة`)
 
-  console.log(`✅ ${chId}: اكتمل تحميل ${sourceKey}`)
-  return cacheDir
-}
+  // ابدأ background downloader للباقي
+  const bgLines = shuffled.map(n => {
+    const num  = String(n).padStart(3,'0')
+    const file = `${cacheDir}/${num}.mp3`
+    const url  = `${src.base}${num}.mp3`
+    return `if (!fs.existsSync('${file}') || fs.statSync('${file}').size < 1000) { try { execSync('curl -fsSL -A "${UA}" -H "Referer: ${REF}" "${url}" -o "${file}" --max-time 45', {timeout:50000,stdio:"pipe"}); } catch(e){} }`
+  }).join('\n')
 
-function countValidLocal(cacheDir, sourceKey) {
-  const bad = new Set(loadBadSurahs(sourceKey))
-  return ALL.filter(n => !bad.has(n)).filter(n => {
-    const f = `${cacheDir}/${String(n).padStart(3, '0')}.mp3`
-    return fs.existsSync(f) && fs.statSync(f).size > 1000
-  })
-}
+  const bgScript = `const {execSync}=require('child_process');const fs=require('fs');\n${bgLines}\n`
+  const bgFile   = `/tmp/bg_${chId}.js`
+  fs.writeFileSync(bgFile, bgScript)
+  spawn('node', [bgFile], { detached: true, stdio: 'ignore' }).unref()
 
-function buildLocalPlaylist(cacheDir, playlist, sourceKey) {
-  const valid = countValidLocal(cacheDir, sourceKey)
-  const bigList = Array(5).fill(valid).flat()
-  const lines   = bigList.map(n => `file '${cacheDir}/${String(n).padStart(3, '0')}.mp3'`).join('\n')
-  fs.writeFileSync(playlist, lines, 'utf8')
-  return valid.length
+  // بناء playlist — 10 دورات عشوائية من الملفات المحلية
+  const bigList = Array(10).fill(shuffled).flat()
+  const lines   = bigList.map(n => {
+    const file = `${cacheDir}/${String(n).padStart(3,'0')}.mp3`
+    return fs.existsSync(file) && fs.statSync(file).size > 1000
+      ? `file '${file}'`
+      : null
+  }).filter(Boolean).join('\n')
+
+  // لو مفيش ملفات محلية كافية استخدم URLs
+  const finalLines = lines || shuffled.map(n =>
+    `file '${src.base}${String(n).padStart(3,'0')}.mp3'`
+  ).join('\n')
+
+  fs.writeFileSync(playlist, finalLines, 'utf8')
+
+  const videoInput = buildVideoInput(src.img)
+
+  return [
+    'ffmpeg -y -hide_banner -loglevel error',
+    '-re',
+    videoInput,
+    '-thread_queue_size 8192',
+    
+    `-protocol_whitelist file,http,https,tcp,tls,crypto`,
+    `-f concat -safe 0 -i "${playlist}"`,
+    '-map 0:v:0 -map 1:a:0',
+    '-c:v libx264 -preset ultrafast -tune stillimage -pix_fmt yuv420p',
+    '-vf scale=1280:720,fps=25',
+    '-b:v 500k -maxrate 600k -bufsize 3000k -g 50',
+    '-c:a aac -b:a 128k -ar 44100 -ac 2',
+    '-async 1 -vsync 1',
+    '-max_muxing_queue_size 4096',
+    '-flvflags no_duration_filesize',
+    `-f flv "${dest}"`
+  ].join(' ')
 }
 
 // ─── بناء أمر ffmpeg ─────────────────────────────────────────────────────────
-async function buildFFmpegCmd(src, dest, chId, sourceKey) {
+function buildFFmpegCmd(src, dest, chId) {
 
   if (src.type === 'stream') {
     const img        = findImg(src.img)
@@ -243,68 +228,29 @@ async function buildFFmpegCmd(src, dest, chId, sourceKey) {
   }
 
   if (src.type === 'online') {
-    let cacheDir = await downloadFullQuran(sourceKey, src, chId)
-    let count    = countValidLocal(cacheDir, sourceKey).length
-
-    // لو مفيش أي سورة صالحة، امسح قائمة الـ bad (يمكن كانت خطأ قديم) وحاول تاني مرة واحدة
-    if (count === 0) {
-      console.log(`⚠️  ${chId}: 0 سورة صالحة لـ ${sourceKey} — إعادة تعيين القائمة السوداء وإعادة المحاولة`)
-      resetBadSurahs(sourceKey)
-      cacheDir = await downloadFullQuran(sourceKey, src, chId)
-      count    = countValidLocal(cacheDir, sourceKey).length
-    }
-
-    if (count === 0) throw new Error('لا توجد سور صالحة للتشغيل حتى بعد إعادة المحاولة')
-
-    const playlist = `/tmp/playlist_${chId}.txt`
-    buildLocalPlaylist(cacheDir, playlist, sourceKey)
-
-    const videoInput = buildVideoInput(src.img)
-
-    return [
-      'ffmpeg -y -hide_banner -loglevel error',
-      '-re',
-      videoInput,
-      '-thread_queue_size 8192',
-      `-protocol_whitelist file,http,https,tcp,tls,crypto`,
-      `-thread_queue_size 8192 -f concat -safe 0 -i "${playlist}"`,
-      '-map 0:v:0 -map 1:a:0',
-      '-af aresample=async=1:first_pts=0',
-      '-c:v libx264 -preset ultrafast -tune stillimage -pix_fmt yuv420p',
-      '-vf scale=1280:720,fps=25',
-      '-b:v 500k -maxrate 600k -bufsize 6000k -g 50',
-      '-c:a aac -b:a 128k -ar 44100 -ac 2',
-      '-async 1 -vsync 1',
-      '-max_muxing_queue_size 9999',
-      '-flvflags no_duration_filesize',
-      `-f flv "${dest}"`
-    ].join(' ')
+    return buildOnlineCmd(src, dest, chId)
   }
 
   throw new Error(`نوع مصدر غير معروف: ${src.type}`)
 }
 
 // ─── إدارة البث ──────────────────────────────────────────────────────────────
-async function startStream(ch, sourceKey) {
+function startStream(ch, sourceKey) {
   const key  = sourceKey || ch.source || 'mecca'
   const src  = SOURCES[key] || SOURCES.mecca
   const dest = `${ch.rtmp}/${ch.key}`
 
   if (procs[ch.id]) {
-    try { procs[ch.id].kill('SIGKILL') } catch (e) {}
+    try { procs[ch.id].kill('SIGKILL') } catch(e) {}
     delete procs[ch.id]
   }
 
-  ch.source      = key
-  retries[ch.id] = retries[ch.id] || 0
+  ch.source           = key
+  retries[ch.id]      = retries[ch.id] || 0
 
   let cmd
-  try   { cmd = await buildFFmpegCmd(src, dest, ch.id, key) }
-  catch (err) {
-    console.log(`❌ ${ch.id}: ${err.message}`)
-    notifyAdmin(`❌ ${ch.id} فشل التشغيل: ${err.message}`)
-    return
-  }
+  try   { cmd = buildFFmpegCmd(src, dest, ch.id) }
+  catch (err) { console.log(`❌ ${ch.id}: ${err.message}`); return }
 
   console.log(`▶️  ${ch.id} → ${src.name}`)
   const proc = exec(cmd, { shell: '/bin/bash', maxBuffer: 1024 * 1024 * 10 })
@@ -321,7 +267,7 @@ async function startStream(ch, sourceKey) {
     if (code !== 0) {
       retries[ch.id]++
       const delay = Math.min(retries[ch.id] * 5000, 30000)
-      console.log(`🔄 ${ch.id} كود ${code} — محاولة ${retries[ch.id]}/${MAX_RETRY} بعد ${delay / 1000}ث`)
+      console.log(`🔄 ${ch.id} كود ${code} — محاولة ${retries[ch.id]}/${MAX_RETRY} بعد ${delay/1000}ث`)
       if (retries[ch.id] <= MAX_RETRY) {
         setTimeout(() => startStream(ch, ch.source), delay)
       } else {
@@ -346,7 +292,7 @@ function startAll() {
 function stopAll() {
   CHANNELS.forEach(ch => {
     if (procs[ch.id]) {
-      try { procs[ch.id].kill('SIGKILL') } catch (e) {}
+      try { procs[ch.id].kill('SIGKILL') } catch(e) {}
       delete procs[ch.id]
     }
   })
@@ -381,7 +327,7 @@ setInterval(() => {
 setTimeout(() => {
   let msg = `✅ *بدأ البث*\n\n`
   CHANNELS.forEach(ch => { msg += `📡 ${ch.id}: ${SOURCES[ch.source]?.name || '—'}\n` })
-  msg += `\n*/status* /list /restart /stop /badlist`
+  msg += `\n*/status* /list /restart /stop`
   notifyAdmin(msg)
 }, 15000)
 
@@ -422,25 +368,6 @@ bot.command('list', async ctx => {
     msg += `• \`${key}\` — ${src.name} (${t})\n`
   }
   await ctx.replyWithMarkdown(msg)
-})
-
-bot.command('badlist', async ctx => {
-  if (ctx.from.id !== ADMIN_ID) return
-  let msg = `⚠️ *السور غير المتاحة لكل قارئ:*\n\n`
-  for (const key of Object.keys(SOURCES)) {
-    if (SOURCES[key].type !== 'online') continue
-    const bad = loadBadSurahs(key)
-    msg += `• \`${key}\`: ${bad.length ? bad.join(', ') : 'لا يوجد'}\n`
-  }
-  await ctx.replyWithMarkdown(msg)
-})
-
-bot.command('resetcache', async ctx => {
-  if (ctx.from.id !== ADMIN_ID) return
-  const [, srcKey] = ctx.message.text.split(' ')
-  if (!srcKey || !SOURCES[srcKey]) return ctx.reply('الاستخدام: /resetcache qatami')
-  resetBadSurahs(srcKey)
-  await ctx.reply(`✅ تم مسح القائمة السوداء لـ ${srcKey}`)
 })
 
 bot.launch({ dropPendingUpdates: true })
